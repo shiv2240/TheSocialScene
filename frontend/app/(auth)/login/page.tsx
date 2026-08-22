@@ -2,29 +2,49 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Sparkles, Phone, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function PhoneLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next') || '/profile';
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || phone.length < 10) {
+    if (!/^\d{10}$/.test(phone)) {
       setError('Please enter a valid 10-digit mobile phone number.');
       return;
     }
+
     setError('');
     setLoading(true);
 
-    // Simulate OTP dispatch via SMS provider / Supabase Auth
-    setTimeout(() => {
+    try {
+      const supabase = createClient();
+      const normalizedPhone = `+91${phone}`;
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        phone: normalizedPhone,
+        options: {
+          shouldCreateUser: true,
+        },
+      });
+
+      if (otpError) throw otpError;
+
+      sessionStorage.setItem('tss_otp_phone', normalizedPhone);
+      sessionStorage.setItem('tss_auth_next', next);
+      router.push(`/verify-otp?phone=${encodeURIComponent(normalizedPhone)}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to send OTP. Please try again.';
+      setError(message);
+    } finally {
       setLoading(false);
-      router.push(`/verify-otp?phone=${encodeURIComponent(phone)}`);
-    }, 1000);
+    }
   };
 
   return (
@@ -32,7 +52,6 @@ export default function PhoneLoginPage() {
       <div className="gradient-glow top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
 
       <div className="w-full max-w-md glass-card p-8 rounded-3xl border border-gray-800 shadow-2xl relative z-10 space-y-6">
-        {/* Header Logo */}
         <div className="text-center space-y-3">
           <Link href="/" className="inline-flex items-center gap-2">
             <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-purple-500/20">
@@ -45,7 +64,6 @@ export default function PhoneLoginPage() {
           </p>
         </div>
 
-        {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider block">
@@ -58,6 +76,8 @@ export default function PhoneLoginPage() {
               </div>
               <input
                 type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 placeholder="9876543210"
@@ -71,7 +91,7 @@ export default function PhoneLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 rounded-xl gradient-bg text-white font-bold text-sm shadow-xl shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-xl gradient-bg text-white font-bold text-sm shadow-xl shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:hover:scale-100"
           >
             {loading ? (
               <span className="animate-pulse">Sending OTP...</span>
