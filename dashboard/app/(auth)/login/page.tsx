@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles, Mail, Lock, ShieldCheck, ArrowRight } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -11,20 +12,36 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Please fill in both email and password.');
       return;
     }
+
     setError('');
     setLoading(true);
 
-    // Simulate Admin/Host authentication via Supabase Auth
-    setTimeout(() => {
+    try {
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (authError) {
+        setError(authError.message || 'Unable to sign in. Please check your credentials.');
+        return;
+      }
+
+      router.replace('/');
+      router.refresh();
+    } catch (err) {
+      console.error('Dashboard login failed:', err);
+      setError('Unable to sign in right now. Please try again.');
+    } finally {
       setLoading(false);
-      router.push('/');
-    }, 1000);
+    }
   };
 
   return (
@@ -54,6 +71,7 @@ export default function AdminLoginPage() {
                 placeholder="admin@thesocialscene.club"
                 className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-900/90 border border-gray-800 text-xs font-medium text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
                 required
+                autoComplete="email"
               />
             </div>
           </div>
@@ -71,6 +89,7 @@ export default function AdminLoginPage() {
                 placeholder="••••••••••••"
                 className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-900/90 border border-gray-800 text-xs font-medium text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
                 required
+                autoComplete="current-password"
               />
             </div>
           </div>
@@ -80,7 +99,7 @@ export default function AdminLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl gradient-bg text-white font-bold text-xs shadow-xl shadow-purple-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-xl gradient-bg text-white font-bold text-xs shadow-xl shadow-purple-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {loading ? (
               <span className="animate-pulse">Authenticating Session...</span>
