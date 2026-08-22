@@ -6,10 +6,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
+function safeNext(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/profile';
+  return value;
+}
+
 function EmailLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') || '/profile';
+  const next = safeNext(searchParams.get('next'));
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -57,16 +62,7 @@ function EmailLoginContent() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="email" className="text-xs font-semibold text-gray-300 uppercase tracking-wider block">Email Address</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full px-4 py-3.5 rounded-xl bg-gray-900/90 border border-gray-700/80 text-sm font-semibold text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
-              required
-            />
+            <input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3.5 rounded-xl bg-gray-900/90 border border-gray-700/80 text-sm font-semibold text-white placeholder-gray-600 focus:outline-none focus:border-purple-500" required />
             {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
           </div>
 
