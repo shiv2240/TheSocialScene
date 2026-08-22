@@ -1,0 +1,122 @@
+'use client';
+
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { Calendar, Search, User, Ticket, Menu, X, Compass } from 'lucide-react';
+
+export function Navbar() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <header className="sticky top-0 z-50 glass-nav">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-20">
+          {/* Official Brand Logo */}
+          <Link href="/" className="flex items-center gap-3.5 group">
+            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#c85a3c]/60 shadow-lg shadow-[#c85a3c]/20 group-hover:scale-105 transition-transform flex-shrink-0 bg-[#f5eedf]">
+              <img
+                src="/logo.jpg"
+                alt="The Social Scene Logo"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div>
+              <span className="text-xl font-black tracking-tight text-white block leading-none">
+                The Social <span className="gradient-text">Scene</span>
+              </span>
+              <span className="block text-[10px] uppercase tracking-widest text-[#e59838] font-extrabold mt-1">
+                Community • Events • Treks
+              </span>
+            </div>
+          </Link>
+
+          {/* Desktop Navigation Links */}
+          <nav className="hidden md:flex items-center gap-8">
+            <Link
+              href="/events"
+              className="text-sm font-bold text-gray-200 hover:text-[#c85a3c] transition-colors flex items-center gap-2"
+            >
+              <Compass className="w-4 h-4 text-[#c85a3c]" />
+              Discover Events & Treks
+            </Link>
+            <Link
+              href="/categories/music-concerts"
+              className="text-sm font-semibold text-gray-300 hover:text-white transition-colors"
+            >
+              Categories
+            </Link>
+            <Link
+              href="/hosts/social-club"
+              className="text-sm font-semibold text-gray-300 hover:text-white transition-colors"
+            >
+              Top Hosts
+            </Link>
+          </nav>
+
+          {/* Actions & User Controls */}
+          <div className="hidden md:flex items-center gap-4">
+            <Link
+              href="/events"
+              className="p-2.5 rounded-full bg-[#231f2b] hover:bg-[#2e2938] text-gray-300 hover:text-white transition-all border border-white/10"
+              title="Search Events"
+            >
+              <Search className="w-4 h-4" />
+            </Link>
+
+            <Link
+              href="/tickets"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#231f2b] hover:bg-[#2e2938] text-xs font-bold text-gray-200 border border-white/10 hover:border-[#c85a3c]/50 transition-all"
+            >
+              <Ticket className="w-4 h-4 text-[#c85a3c]" />
+              My Tickets
+            </Link>
+
+            <Link
+              href="/login"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl gradient-terracotta text-xs font-extrabold text-white shadow-lg shadow-[#c85a3c]/30 hover:shadow-[#c85a3c]/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              <User className="w-4 h-4" />
+              Sign In
+            </Link>
+          </div>
+
+          {/* Mobile Menu Toggle Button */}
+          <div className="md:hidden flex items-center gap-3">
+            <Link
+              href="/login"
+              className="px-3 py-1.5 rounded-xl gradient-terracotta text-xs font-extrabold text-white"
+            >
+              Sign In
+            </Link>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-xl bg-[#231f2b] text-gray-300 hover:text-white"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Dropdown Navigation */}
+        {mobileMenuOpen && (
+          <div className="md:hidden py-4 border-t border-white/10 space-y-3">
+            <Link
+              href="/events"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]"
+            >
+              Discover Events & Treks
+            </Link>
+            <Link
+              href="/tickets"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]"
+            >
+              My Tickets
+            </Link>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
