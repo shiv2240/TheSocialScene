@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-export default function PhoneLoginPage() {
+function PhoneLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get('next') || '/profile';
@@ -29,9 +29,7 @@ export default function PhoneLoginPage() {
       const normalizedPhone = `+91${phone}`;
       const { error: otpError } = await supabase.auth.signInWithOtp({
         phone: normalizedPhone,
-        options: {
-          shouldCreateUser: true,
-        },
+        options: { shouldCreateUser: true },
       });
 
       if (otpError) throw otpError;
@@ -50,7 +48,6 @@ export default function PhoneLoginPage() {
   return (
     <div className="min-h-screen bg-[#090a0f] text-gray-100 flex items-center justify-center p-4 relative overflow-hidden">
       <div className="gradient-glow top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-
       <div className="w-full max-w-md glass-card p-8 rounded-3xl border border-gray-800 shadow-2xl relative z-10 space-y-6">
         <div className="text-center space-y-3">
           <Link href="/" className="inline-flex items-center gap-2">
@@ -59,20 +56,15 @@ export default function PhoneLoginPage() {
             </div>
           </Link>
           <h1 className="text-2xl font-extrabold text-white">Sign In to Continue</h1>
-          <p className="text-xs text-gray-400">
-            Enter your phone number to receive a 6-digit verification code.
-          </p>
+          <p className="text-xs text-gray-400">Enter your phone number to receive a 6-digit verification code.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider block">
-              Mobile Number
-            </label>
+            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider block">Mobile Number</label>
             <div className="relative">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-sm font-bold text-gray-400">
-                <span>+91</span>
-                <span className="w-px h-4 bg-gray-700 mx-1" />
+                <span>+91</span><span className="w-px h-4 bg-gray-700 mx-1" />
               </div>
               <input
                 type="tel"
@@ -93,22 +85,22 @@ export default function PhoneLoginPage() {
             disabled={loading}
             className="w-full py-4 rounded-xl gradient-bg text-white font-bold text-sm shadow-xl shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:hover:scale-100"
           >
-            {loading ? (
-              <span className="animate-pulse">Sending OTP...</span>
-            ) : (
-              <>
-                <span>Get OTP Code</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
+            {loading ? <span className="animate-pulse">Sending OTP...</span> : <><span>Get OTP Code</span><ArrowRight className="w-4 h-4" /></>}
           </button>
         </form>
 
         <div className="flex items-center justify-center gap-2 text-xs text-gray-500 pt-4 border-t border-gray-800">
-          <ShieldCheck className="w-4 h-4 text-purple-400" />
-          <span>Secure SMS Phone Authentication</span>
+          <ShieldCheck className="w-4 h-4 text-purple-400" /><span>Secure SMS Phone Authentication</span>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PhoneLoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#090a0f] text-white flex items-center justify-center text-sm">Loading...</div>}>
+      <PhoneLoginContent />
+    </Suspense>
   );
 }
