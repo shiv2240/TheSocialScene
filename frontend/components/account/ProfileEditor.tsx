@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { MailCheck, Save, ShieldCheck } from 'lucide-react';
 import { getFirebaseAuth } from '@/lib/firebase/client';
-import { verifyBeforeUpdateEmail } from 'firebase/auth';
+import { signInWithCustomToken, verifyBeforeUpdateEmail } from 'firebase/auth';
 
 interface ProfileEditorProps {
   initialName: string;
@@ -28,11 +28,30 @@ export function ProfileEditor({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const refreshServerSession = async () => {
+  const ensureFirebaseUser = async () => {
     const auth = getFirebaseAuth();
-    const currentUser = auth.currentUser;
-    if (!currentUser) throw new Error('Your sign-in session has expired. Please sign in again.');
+    if (auth.currentUser) return auth.currentUser;
 
+    const response = await fetch('/api/auth/client-token', {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const body = await response.json().catch(() => ({}));
+
+    if (!response.ok || !body.customToken) {
+      throw new Error(body.error || 'Your sign-in session has expired. Please sign in again.');
+    }
+
+    await signInWithCustomToken(auth, body.customToken);
+    if (!auth.currentUser) {
+      throw new Error('Unable to restore your sign-in session. Please sign in again.');
+    }
+
+    return auth.currentUser;
+  };
+
+  const refreshServerSession = async () => {
+    const currentUser = await ensureFirebaseUser();
     const idToken = await currentUser.getIdToken(true);
     const sessionResponse = await fetch('/api/auth/session', {
       method: 'POST',
@@ -94,9 +113,7 @@ export function ProfileEditor({
         throw new Error('Enter a valid email address first.');
       }
 
-      const auth = getFirebaseAuth();
-      const currentUser = auth.currentUser;
-      if (!currentUser) throw new Error('Your sign-in session has expired. Please sign in again.');
+      const currentUser = await ensureFirebaseUser();
 
       if (currentUser.email?.toLowerCase() === nextEmail && currentUser.emailVerified) {
         setEmailVerified(true);
