@@ -17,10 +17,11 @@ export default function VerifyEmailPage() {
       const params = new URLSearchParams(window.location.search);
       const mode = params.get('mode');
       const oobCode = params.get('oobCode');
+      const isSupportedMode = mode === 'verifyEmail' || mode === 'verifyAndChangeEmail';
 
-      if (mode !== 'verifyEmail' || !oobCode) {
+      if (!isSupportedMode || !oobCode) {
         setStatus('error');
-        setMessage('This verification link is missing or invalid. Please request a new verification email from your profile.');
+        setMessage('This verification link is missing or invalid. Please request a new verification link from your profile.');
         return;
       }
 
@@ -28,19 +29,40 @@ export default function VerifyEmailPage() {
         const auth = getFirebaseAuth();
         await applyActionCode(auth, oobCode);
 
-        if (auth.currentUser) {
-          await auth.currentUser.reload();
-          const idToken = await auth.currentUser.getIdToken(true);
-          await fetch('/api/auth/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ idToken }),
-          });
+        if (!auth.currentUser) {
+          setStatus('success');
+          setMessage('Your email has been verified in Firebase. Sign in again to sync it to your Social Scene profile.');
+          return;
         }
 
+        await auth.currentUser.reload();
+        const idToken = await auth.currentUser.getIdToken(true);
+
+        const sessionResponse = await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ idToken }),
+        });
+        const sessionBody = await sessionResponse.json().catch(() => ({}));
+        if (!sessionResponse.ok) {
+          throw new Error(sessionBody.error || 'Unable to refresh your sign-in session.');
+        }
+
+        const profileResponse = await fetch('/api/profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email_verified: true }),
+        });
+        const profileBody = await profileResponse.json().catch(() => ({}));
+        if (!profileResponse.ok) {
+          throw new Error(profileBody.error || 'Email was verified, but we could not sync it to your profile.');
+        }
+
+        window.dispatchEvent(new Event('tss:profile-updated'));
         setStatus('success');
-        setMessage('Your email has been verified successfully.');
+        setMessage(`Your email ${profileBody.profile?.email || auth.currentUser.email || ''} has been verified and added to your Social Scene profile.`);
       } catch (error) {
         setStatus('error');
         setMessage(error instanceof Error ? error.message : 'This verification link is invalid or has expired.');
