@@ -2,15 +2,29 @@ import Link from 'next/link';
 import { Ticket as TicketIcon, QrCode, MapPin, Image as ImageIcon } from 'lucide-react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentFirebaseUser } from '@/lib/firebase/session';
+import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { redirect } from 'next/navigation';
 
 export default async function UserTicketsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const user = await getCurrentFirebaseUser();
+  if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('id').eq('auth_user_id', user.id).maybeSingle();
-  const { data: tickets } = profile ? await supabase.from('tickets').select(`id, ticket_code, qr_payload, status, created_at, events:event_id(id, title, cover_image, start_at, venue:venue_id(name, address, city))`).eq('user_id', profile.id).order('created_at', { ascending: false }) : { data: [] };
+  const supabase = getSupabaseAdmin();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('firebase_uid', user.uid)
+    .maybeSingle();
+
+  const { data: tickets } = profile
+    ? await supabase
+        .from('tickets')
+        .select(`id, ticket_code, qr_payload, status, created_at, events:event_id(id, title, cover_image, start_at, venue:venue_id(name, address, city))`)
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+    : { data: [] };
+
   const activeTicket = tickets?.[0];
   const event = activeTicket?.events ? (Array.isArray(activeTicket.events) ? activeTicket.events[0] : activeTicket.events) : null;
   const venue = event?.venue ? (Array.isArray(event.venue) ? event.venue[0] : event.venue) : null;
