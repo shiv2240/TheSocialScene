@@ -82,6 +82,7 @@ export function ProfileEditor({
     }
   };
 
+  // Email verification is intentionally initiated only from the email field.
   const verifyEmail = async () => {
     setSendingVerification(true);
     setMessage('');
