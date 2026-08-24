@@ -17,7 +17,7 @@ function normalizeIndianPhone(value: string) {
   const raw = value.trim().replace(/[\s()-]/g, '');
   if (/^\+91\d{10}$/.test(raw)) return raw;
   if (/^91\d{10}$/.test(raw)) return `+${raw}`;
-  if /^\d{10}$/.test(raw)) return `+91${raw}`;
+  if (/^\d{10}$/.test(raw)) return `+91${raw}`;
   throw new Error('Enter a valid 10-digit Indian mobile number.');
 }
 
