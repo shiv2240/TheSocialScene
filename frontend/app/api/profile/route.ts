@@ -8,6 +8,7 @@ export const runtime = 'nodejs';
 const profileSchema = z.object({
   full_name: z.string().trim().min(2).max(100).optional(),
   email: z.union([z.string().trim().email().max(200), z.literal('')]).optional(),
+  email_verified: z.boolean().optional(),
   marketing_opt_in: z.boolean().optional(),
 });
 
@@ -33,17 +34,22 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const parsed = profileSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Enter a valid name and email address.' }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: 'Enter valid profile details.' }, { status: 400 });
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (parsed.data.full_name !== undefined) updates.full_name = parsed.data.full_name;
   if (parsed.data.marketing_opt_in !== undefined) updates.marketing_opt_in = parsed.data.marketing_opt_in;
-  if (parsed.data.email !== undefined) {
-    const email = parsed.data.email.toLowerCase();
-    updates.email = email || null;
-    // This is a profile/contact email, not the phone-auth credential.
-    // It remains unverified until a dedicated email-verification flow is completed.
-    updates.email_verified = false;
+
+  if (parsed.data.email !== undefined && parsed.data.email_verified !== true) {
+    return NextResponse.json({ error: 'Email can only be saved after Firebase verification.' }, { status: 400 });
+  }
+
+  if (parsed.data.email_verified === true) {
+    if (!user.email || !user.email_verified) {
+      return NextResponse.json({ error: 'Firebase email verification is not complete.' }, { status: 400 });
+    }
+    updates.email = user.email.toLowerCase();
+    updates.email_verified = true;
   }
 
   const supabase = getSupabaseAdmin();
