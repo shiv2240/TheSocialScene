@@ -45,22 +45,20 @@ Firebase session cookie
 Supabase profile
 ```
 
-Email is an **optional profile/contact field**. Adding an email does not change the user's phone-based authentication method. Email verification is tracked separately and is not assumed to be complete merely because an address was saved.
+Email is an **optional profile/contact field**. It does not replace phone authentication. Email verification is handled through Firebase and the verified address is then synchronized to the user's Supabase profile.
 
-The navbar reads the authenticated Firebase session through the server-backed profile API and displays `Hi, <first name>` when the profile has a name. Profile updates notify the navbar immediately.
+The navbar reads the authenticated server-backed profile and displays `Hi, <first name>` when a name is available.
 
 ## Payments, Tickets and Attendance
-
-The payment flow is designed around server-side Razorpay order creation and verification:
 
 ```text
 Event registration
    ↓
 Pending order
    ↓
-Razorpay Checkout
+Razorpay Checkout (test mode locally)
    ↓
-Signature verification
+Server-side signature verification
    ↓
 Confirmed registration
    ↓
@@ -73,18 +71,25 @@ Dashboard scanner
 Check-in / attendance
 ```
 
-Razorpay test credentials must remain server-side. The webhook endpoint is `/api/payments/webhook`.
+Razorpay credentials and the webhook secret are server-only. The webhook endpoint is `/api/payments/webhook`.
 
-The dashboard contains a dedicated scanner and supports event-aware ticket validation and duplicate check-in prevention.
+## Environment Configuration
 
-## Environment Variables
+Never commit `.env.local` or real secrets. The repository contains separate templates for each application:
 
-Never commit real secrets. Start from `frontend/.env.example` and configure the corresponding variables in Vercel for production.
+- Root: `.env.example` — complete reference list.
+- Public frontend: `frontend/.env.example` → copy to `frontend/.env.local`.
+- Dashboard: `dashboard/.env.example` → copy to `dashboard/.env.local`.
 
-### Public variables
+### Frontend variables
 
+**Supabase**
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `DATABASE_URL` (optional; migrations/CLI)
+
+**Firebase**
 - `NEXT_PUBLIC_FIREBASE_API_KEY`
 - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
@@ -92,40 +97,70 @@ Never commit real secrets. Start from `frontend/.env.example` and configure the 
 - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 - `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID`
-- `NEXT_PUBLIC_APP_URL`
-- `NEXT_PUBLIC_ADMIN_URL`
-
-### Server-only variables
-
-- `TWOFACTOR_API_KEY`
-- `TWOFACTOR_OTP_TEMPLATE_NAME`
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+
+**OTP**
+- `TWOFACTOR_API_KEY`
+- `TWOFACTOR_OTP_TEMPLATE_NAME`
+
+**Razorpay**
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
 - `RAZORPAY_WEBHOOK_SECRET`
 
-`SUPABASE_SERVICE_ROLE_KEY`, Firebase Admin credentials, 2Factor API credentials and Razorpay secrets must never be prefixed with `NEXT_PUBLIC_` or exposed to browser code.
+**Application / analytics**
+- `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_ADMIN_URL`
+- `NEXT_PUBLIC_GA_MEASUREMENT_ID`
+- `NEXT_PUBLIC_POSTHOG_KEY`
+
+`SUPABASE_SERVICE_ROLE_KEY`, Firebase Admin credentials, 2Factor credentials and Razorpay secrets must never use `NEXT_PUBLIC_` or be exposed to browser code.
 
 ## Local Development
+
+### 1. Public frontend
 
 ```bash
 cd frontend
 npm install
+```
+
+Create `frontend/.env.local` from `frontend/.env.example`, fill every required value, then run:
+
+```bash
 npm run dev
 ```
 
-The dashboard runs separately:
+Open `http://localhost:3000`.
+
+### 2. Dashboard
+
+In a second terminal:
 
 ```bash
 cd dashboard
 npm install
+```
+
+Create `dashboard/.env.local` from `dashboard/.env.example`, then run:
+
+```bash
 npm run dev -- -p 3001
 ```
 
-Use the environment template rather than copying production credentials into source control.
+Open `http://localhost:3001`.
+
+### 3. Local OTP test
+
+The local frontend uses the real 2Factor account when `TWOFACTOR_API_KEY` is configured. OTP verification uses the session ID returned by 2Factor and the server-side Firebase/Supabase integrations.
+
+### 4. Local payment test
+
+Use **Razorpay Test Mode** credentials locally. Do not put live Razorpay credentials in local development unless explicitly required.
+
+For webhook testing, use a reachable HTTPS tunnel if Razorpay needs to call your local `/api/payments/webhook` endpoint.
 
 ## Supabase
 
@@ -133,15 +168,17 @@ The database contains the event, registration, payment, ticket, check-in, profil
 
 ## Production Deployment
 
-The public frontend is deployed through Vercel from the `main` branch. A push to `main` triggers a production deployment. After changing environment variables, trigger a fresh production deployment so the serverless functions receive the new values.
+The public frontend is deployed through Vercel from the `main` branch. After changing environment variables, a fresh production deployment is required for serverless functions to receive the new values.
 
 Before treating a release as production-ready, verify:
 
-1. Phone OTP is delivered by the configured 2Factor SMS flow.
-2. OTP verification creates/loads the Firebase user and establishes the Firebase session cookie.
-3. Profile name and contact email can be saved independently of phone authentication.
-4. Navbar changes from `Sign In` to the user's greeting.
-5. Razorpay test order creation and payment signature verification succeed.
-6. Confirmed payment creates a ticket and QR.
-7. Dashboard scanner validates the ticket against the selected event.
-8. Duplicate scans are rejected and attendance is recorded.
+1. Phone OTP is delivered by 2Factor as SMS.
+2. OTP verification succeeds using the 2Factor session ID.
+3. Firebase authentication and the server session cookie are established.
+4. Profile name and contact email can be saved independently of phone authentication.
+5. Email verification updates Firebase and then Supabase.
+6. Navbar changes from `Sign In` to the user's greeting.
+7. Razorpay test order creation and payment signature verification succeed.
+8. Confirmed payment creates a ticket and QR.
+9. Dashboard scanner validates the ticket against the selected event.
+10. Duplicate scans are rejected and attendance is recorded.
