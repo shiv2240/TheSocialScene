@@ -21,6 +21,7 @@ export function ProfileEditor({
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail);
   const [emailVerified, setEmailVerified] = useState(initialEmailVerified);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(initialMarketingOptIn);
   const [saving, setSaving] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
@@ -71,11 +72,8 @@ export function ProfileEditor({
           throw firebaseError;
         }
 
-        await sendEmailVerification(currentAuthUser, {
-          url: `${window.location.origin}/verify-email`,
-          handleCodeInApp: true,
-        });
         setEmailVerified(false);
+        setVerificationSent(false);
       }
 
       await refreshServerSession();
@@ -99,7 +97,7 @@ export function ProfileEditor({
       setMarketingOptIn(Boolean(body.profile?.marketing_opt_in));
       setMessage(
         emailChanged && nextEmail
-          ? `Verification email sent to ${nextEmail}. Please verify it to complete the email setup.`
+          ? 'Email saved. Click “Verify Email” to receive the verification link.'
           : 'Profile updated successfully.',
       );
       window.dispatchEvent(new Event('tss:profile-updated'));
@@ -110,22 +108,32 @@ export function ProfileEditor({
     }
   };
 
-  const resendVerification = async () => {
+  const sendVerification = async () => {
     setSendingVerification(true);
     setMessage('');
     setError('');
+
     try {
       const auth = getFirebaseAuth();
       const currentUser = auth.currentUser;
       if (!currentUser?.email) throw new Error('Add an email address first.');
+
       await sendEmailVerification(currentUser, {
         url: `${window.location.origin}/verify-email`,
         handleCodeInApp: true,
       });
-      setMessage(`Verification email resent to ${currentUser.email}.`);
+
+      setVerificationSent(true);
+      setMessage(`Verification email sent to ${currentUser.email}. Check your inbox and click the verification link.`);
     } catch (err) {
       const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: unknown }).code) : '';
-      setError(code === 'auth/too-many-requests' ? 'Too many verification requests. Please try again later.' : err instanceof Error ? err.message : 'Unable to send verification email.');
+      setError(
+        code === 'auth/too-many-requests'
+          ? 'Too many verification requests. Please try again later.'
+          : err instanceof Error
+            ? err.message
+            : 'Unable to send verification email.',
+      );
     } finally {
       setSendingVerification(false);
     }
@@ -139,14 +147,22 @@ export function ProfileEditor({
       </div>
       <div>
         <label htmlFor="profile-email" className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Email for tickets & updates</label>
-        <input id="profile-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" className="mt-2 w-full px-4 py-3 rounded-xl bg-[#1d1a24] border border-white/10 text-sm text-white focus:outline-none focus:border-[#ff573d]" />
+        <input id="profile-email" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setVerificationSent(false); }} placeholder="you@example.com" autoComplete="email" className="mt-2 w-full px-4 py-3 rounded-xl bg-[#1d1a24] border border-white/10 text-sm text-white focus:outline-none focus:border-[#ff573d]" />
         <p className="mt-1 text-[11px] text-gray-500">Your phone remains your sign-in method. Email is used for tickets, important updates and promotions when you opt in.</p>
         {email && (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#1d1a24] px-4 py-3">
-            <span className={`text-xs font-semibold ${emailVerified ? 'text-emerald-400' : 'text-amber-300'}`}>
-              {emailVerified ? '✓ Email verified' : 'Verification pending'}
-            </span>
-            {!emailVerified && <button type="button" onClick={resendVerification} disabled={sendingVerification} className="text-xs font-bold text-purple-300 hover:text-white disabled:opacity-50">{sendingVerification ? 'Sending...' : 'Resend verification'}</button>}
+            {emailVerified ? (
+              <span className="text-xs font-semibold text-emerald-400">✓ Email verified</span>
+            ) : (
+              <>
+                <span className={`text-xs font-semibold ${verificationSent ? 'text-amber-300' : 'text-gray-300'}`}>
+                  {verificationSent ? 'Verification email sent' : 'Email not verified'}
+                </span>
+                <button type="button" onClick={sendVerification} disabled={sendingVerification || saving} className="text-xs font-bold text-purple-300 hover:text-white disabled:opacity-50">
+                  {sendingVerification ? 'Sending...' : verificationSent ? 'Resend verification' : 'Verify Email'}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
