@@ -19,25 +19,31 @@ export async function POST(request: NextRequest) {
     });
 
     const supabase = getSupabaseAdmin();
+    const lookupFilters = [`firebase_uid.eq.${decoded.uid}`];
+    if (decoded.email) lookupFilters.push(`email.eq.${decoded.email}`);
+    if (decoded.phone_number) lookupFilters.push(`phone.eq.${decoded.phone_number}`);
+
     const { data: existingProfile, error: findError } = await supabase
       .from('profiles')
-      .select('id, phone, phone_verified')
-      .eq('firebase_uid', decoded.uid)
+      .select('id, phone, phone_verified, firebase_uid, email')
+      .or(lookupFilters.join(','))
+      .limit(1)
       .maybeSingle();
 
     if (findError) throw findError;
 
-    const profilePayload = {
+    const profilePayload: Record<string, unknown> = {
       firebase_uid: decoded.uid,
-      email: decoded.email ?? null,
+      email: decoded.email ?? existingProfile?.email ?? null,
       email_verified: Boolean(decoded.email_verified),
       full_name: decoded.name ?? 'The Social Scene Member',
       updated_at: new Date().toISOString(),
-      ...(decoded.phone_number && !existingProfile?.phone ? {
-        phone: decoded.phone_number,
-        phone_verified: true,
-      } : {}),
     };
+
+    if (decoded.phone_number && !existingProfile?.phone) {
+      profilePayload.phone = decoded.phone_number;
+      profilePayload.phone_verified = true;
+    }
 
     let profileId = existingProfile?.id;
     if (profileId) {
