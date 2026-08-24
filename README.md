@@ -16,27 +16,11 @@
 
 ## 📁 Repository Structure (Monorepo)
 
-```
+```text
 .
 ├── frontend/                     # Public Audience Discovery Site (thesocialscene.club)
-│   ├── app/                      # Next.js App Router (Homepage, Events, Checkout, OTP, Tickets)
-│   ├── components/               # Navbar, Footer, EventCard, ProfileEditor, TicketStubs
-│   ├── lib/                      # Client utilities, Firebase SDK, Supabase admin & services
-│   └── package.json
-│
 ├── dashboard/                    # Operations & Host Dashboard (admin.thesocialscene.club)
-│   ├── app/                      # Overview, Events, 9-Section Wizard, Scanner, Registrations
-│   ├── components/               # DashboardSidebar, DashboardHeader
-│   ├── lib/                      # Dashboard utilities & Supabase admin module
-│   └── package.json
-│
 └── backend/                      # Core Relational Database & Shared Business Logic
-    ├── supabase/
-    │   ├── migrations/           # 00001 to 00009 SQL migrations (Schema, RLS, Auth, Razorpay)
-    │   └── seed.sql              # System roles, granular permissions, categories, venues
-    ├── services/                 # Event, Ticket, Checkin, Payment, Notification, Analytics, Audit
-    ├── lib/                      # Zod validation schemas & RBAC permission matrix
-    └── types/                    # Shared DB TypeScript interfaces
 ```
 
 ---
@@ -45,8 +29,6 @@
 
 ### 1. Install Dependencies
 
-In each workspace directory:
-
 ```bash
 cd frontend && npm install
 cd ../dashboard && npm install
@@ -54,44 +36,27 @@ cd ../dashboard && npm install
 
 ### 2. Environment Setup
 
-Copy `.env.example` to `frontend/.env.local` and `dashboard/.env.local`:
+Copy the application-specific templates:
 
 ```bash
-# Supabase Database
-NEXT_PUBLIC_SUPABASE_URL=https://jkzlowhvromnaracfyja.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=***REMOVED***
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SECRET_SERVICE_ROLE_KEY
-DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.jkzlowhvromnaracfyja.supabase.co:5432/postgres
-
-# Firebase Phone Auth
-NEXT_PUBLIC_FIREBASE_API_KEY=***REMOVED***
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=the-social-scene-2fd72.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=the-social-scene-2fd72
-
-# 2Factor SMS OTP
-TWOFACTOR_API_KEY=***REMOVED***
-TWOFACTOR_OTP_TEMPLATE_NAME=The Social Scene OTP
-
-# Razorpay Payments
-RAZORPAY_KEY_ID=rzp_test_TTWSYM56qr5YYi
-RAZORPAY_KEY_SECRET=***REMOVED***
-
-# Resend Email Integration
-RESEND_API_KEY=***REMOVED***
-
-# Domains
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_ADMIN_URL=http://localhost:3001
+copy frontend\.env.example frontend\.env.local
+copy dashboard\.env.example dashboard\.env.local
 ```
+
+Then replace every placeholder with the corresponding value from your local development credentials. **Never commit `.env.local` files or real secrets.**
+
+Server-only credentials include Firebase Admin credentials, the Supabase service-role key, 2Factor API key, Razorpay secret/webhook secret, and Resend API key. These must never be exposed through `NEXT_PUBLIC_*` variables.
 
 ### 3. Run Local Dev Servers
 
 ```bash
-# Terminal 1 — Public Website (http://localhost:3000)
+# Terminal 1 — Public Website
 cd frontend && npm run dev
+# http://localhost:3000
 
-# Terminal 2 — Admin Dashboard (http://localhost:3001)
+# Terminal 2 — Admin Dashboard
 cd dashboard && npm run dev -- -p 3001
+# http://localhost:3001
 ```
 
 ---
@@ -100,13 +65,13 @@ cd dashboard && npm run dev -- -p 3001
 
 Apply the migrations in `backend/supabase/migrations/` in sequence (00001 to 00009):
 
-1. `00001_initial_schema.sql` — Initial 25 tables.
-2. `00002_functions_triggers.sql` — Capacity lock function `reserve_event_ticket()`.
+1. `00001_initial_schema.sql` — Initial schema.
+2. `00002_functions_triggers.sql` — Capacity lock function.
 3. `00003_auth_profile_and_rls.sql` — Profiles & RLS policies.
 4. `00004_public_event_access.sql` — Public experience visibility.
 5. `00007_auth_hardening_and_dashboard_rbac.sql` — Dashboard access control.
 6. `00008_firebase_phone_auth.sql` — Firebase phone auth bridge.
-7. `00009_razorpay_and_checkin.sql` — Razorpay payment orders & checkin functions.
+7. `00009_razorpay_and_checkin.sql` — Razorpay payment orders & check-in functions.
 
 ---
 
@@ -114,7 +79,17 @@ Apply the migrations in `backend/supabase/migrations/` in sequence (00001 to 000
 
 - **GoFlow Public Discovery:** Live ticker marquee, retro emblem hero, interactive vibe pills, attendee avatar stacks.
 - **Firebase & 2Factor Phone Auth:** SMS OTP verification with automatic profile creation and session cookies.
-- **Razorpay Payments & Tickets:** Order generation, payment verification, webhook handlers, and instant digital pass generation.
-- **Physical Ticket Stub View:** Notched tear cutouts, barcode, QR code renderer, and seat metadata.
-- **Admin Dashboard & Scanner:** Recharts telemetry, 9-step event wizard, camera check-in scanner, attendee exports.
-- **Google Analytics Integration:** Built-in telemetry (`G-G4D8JB1ZBW`).
+- **Optional Email Verification:** Firebase handles email verification while the verified email is synchronized to the user's Supabase profile.
+- **Razorpay Payments & Tickets:** Order generation, payment verification, webhook handlers, and digital pass generation.
+- **Physical Ticket Stub View:** Barcode, QR code renderer, and seat metadata.
+- **Admin Dashboard & Scanner:** Recharts telemetry, event wizard, camera check-in scanner, attendee exports.
+- **Google Analytics Integration:** Built-in telemetry.
+
+---
+
+## 🔐 Security Rules
+
+- Never commit `.env.local`, service-account JSON files, private keys, API secrets, or webhook secrets.
+- Keep Firebase Admin, Supabase service-role, 2Factor, Razorpay Secret, Razorpay webhook, and Resend credentials server-side.
+- Use test-mode Razorpay credentials for local payment testing.
+- If a secret is accidentally committed, rotate/revoke it immediately and remove it from the repository.
