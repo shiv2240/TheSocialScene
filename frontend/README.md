@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# The Social Scene — Public Frontend
 
-## Getting Started
+Next.js 16 + TypeScript application for event discovery, phone-first authentication, profiles, checkout, tickets and QR attendance.
 
-First, run the development server:
+## Local setup
+
+From the repository root:
+
+```bash
+cd frontend
+npm install
+```
+
+Create the local environment file:
+
+```bash
+copy .env.example .env.local
+```
+
+On macOS/Linux, use:
+
+```bash
+cp .env.example .env.local
+```
+
+Fill **all required values** in `.env.local`. Never commit this file.
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Required local integrations
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The local authentication flow requires:
 
-## Learn More
+- Supabase project URL + publishable key.
+- Supabase service-role key for server API routes.
+- Firebase Web configuration.
+- Firebase Admin service-account credentials.
+- 2Factor API key and the approved OTP template name.
 
-To learn more about Next.js, take a look at the following resources:
+The local payment flow uses Razorpay **Test Mode**:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See [`./.env.example`](./.env.example) for the complete variable list.
 
-## Deploy on Vercel
+## Authentication flow
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```text
+Phone number
+  → 2Factor SMS OTP
+  → 2Factor OTP session ID verification
+  → Firebase user/session
+  → Supabase profile
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Email is optional. A user can add or change the email from Profile. Firebase sends the verification email; after verification, the verified email is synchronized to Supabase.
+
+If the browser Firebase session is missing but the server session cookie is valid, the email-verification flow can restore the browser session through `/api/auth/client-token` before calling Firebase email verification APIs.
+
+## Payment → ticket → QR flow
+
+```text
+Event
+  → registration
+  → Razorpay test checkout
+  → server-side signature verification
+  → confirmed registration
+  → ticket + QR
+  → dashboard scanner
+```
+
+## Useful commands
+
+```bash
+npm run dev
+npm run build
+npm run start
+```
+
+For the complete monorepo setup, see the repository root `README.md`.
