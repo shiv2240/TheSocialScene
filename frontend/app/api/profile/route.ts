@@ -6,10 +6,12 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 export const runtime = 'nodejs';
 
 const profileSchema = z.object({
-  full_name: z.string().min(2).max(100).optional(),
-  email: z.union([z.string().email().max(200), z.literal('')]).optional(),
+  full_name: z.string().trim().min(2).max(100).optional(),
+  email: z.union([z.string().trim().email().max(200), z.literal('')]).optional(),
   marketing_opt_in: z.boolean().optional(),
 });
+
+const profileSelect = 'id, full_name, phone, phone_verified, email, email_verified, marketing_opt_in, status, created_at';
 
 export async function GET() {
   const user = await getCurrentFirebaseUser();
@@ -18,7 +20,7 @@ export async function GET() {
   const supabase = getSupabaseAdmin();
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, full_name, phone, phone_verified, email, email_verified, marketing_opt_in, status, created_at')
+    .select(profileSelect)
     .eq('firebase_uid', user.uid)
     .maybeSingle();
 
@@ -31,16 +33,17 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const parsed = profileSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid profile data.' }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: 'Enter a valid name and email address.' }, { status: 400 });
 
-  const updates: Record<string, unknown> = {
-    ...parsed.data,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (typeof updates.email === 'string') {
-    updates.email_verified = updates.email === user.email && Boolean(user.email_verified);
-    if (updates.email === '') updates.email = null;
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (parsed.data.full_name !== undefined) updates.full_name = parsed.data.full_name;
+  if (parsed.data.marketing_opt_in !== undefined) updates.marketing_opt_in = parsed.data.marketing_opt_in;
+  if (parsed.data.email !== undefined) {
+    const email = parsed.data.email.toLowerCase();
+    updates.email = email || null;
+    // This is a profile/contact email, not the phone-auth credential.
+    // It remains unverified until a dedicated email-verification flow is completed.
+    updates.email_verified = false;
   }
 
   const supabase = getSupabaseAdmin();
@@ -48,9 +51,15 @@ export async function PATCH(request: NextRequest) {
     .from('profiles')
     .update(updates)
     .eq('firebase_uid', user.uid)
-    .select('id, full_name, phone, phone_verified, email, email_verified, marketing_opt_in, status, created_at')
+    .select(profileSelect)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) {
+    if (error.code === '23505') {
+      return NextResponse.json({ error: 'That email address is already associated with another account.' }, { status: 409 });
+    }
+    return NextResponse.json({ error: `Unable to save profile: ${error.message}` }, { status: 400 });
+  }
+
   return NextResponse.json({ profile });
 }
