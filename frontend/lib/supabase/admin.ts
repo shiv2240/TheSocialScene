@@ -2,7 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 
 let cachedClient: ReturnType<typeof createClient> | undefined;
 
-export function getSupabaseAdmin() {
+// The project does not currently ship generated Supabase Database types.
+// Keep this server-only client untyped so API routes can work against the live schema.
+export function getSupabaseAdmin(): any {
   if (cachedClient) return cachedClient;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
