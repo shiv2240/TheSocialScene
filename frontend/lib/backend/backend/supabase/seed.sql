@@ -47,10 +47,5 @@ INSERT INTO event_categories (name, slug, icon, description, display_order) VALU
 ('Food & Culinary', 'food-culinary', 'Utensils', 'Chef pop-ups, wine tasting, and food crawls', 6)
 ON CONFLICT (slug) DO NOTHING;
 
--- 4. Insert Sample Venues
-INSERT INTO venues (name, slug, address, city, google_maps_url, latitude, longitude, capacity) VALUES
-('The Social House Indiranagar', 'social-house-indiranagar', '100ft Road, Indiranagar', 'Bengaluru', 'https://maps.google.com', 12.9784, 77.6408, 250),
-('Koramangala Social Studio', 'koramangala-social-studio', '80ft Road, Koramangala 4th Block', 'Bengaluru', 'https://maps.google.com', 12.9345, 77.6265, 180),
-('Cyber Hub Amphitheatre', 'cyber-hub-amphitheatre', 'DLF Cyber City', 'Gurugram', 'https://maps.google.com', 28.4950, 77.0895, 400),
-('Bandra Creative Loft', 'bandra-creative-loft', 'Hill Road, Bandra West', 'Mumbai', 'https://maps.google.com', 19.0596, 72.8295, 120)
-ON CONFLICT (slug) DO NOTHING;
+-- Venues are intentionally not seeded with demo data.
+-- Real venues should be created from the admin dashboard.
