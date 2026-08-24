@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# The Social Scene — Admin Dashboard
 
-## Getting Started
+Next.js dashboard for event operations, registrations, payments, guest lists, QR scanning, check-ins, analytics and RBAC.
 
-First, run the development server:
+## Local setup
+
+From the repository root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd dashboard
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create the local environment file:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+copy .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+On macOS/Linux:
 
-## Learn More
+```bash
+cp .env.example .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+Fill the Supabase URL and publishable key, then start:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev -- -p 3001
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open `http://localhost:3001`.
 
-## Deploy on Vercel
+## Environment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The dashboard currently requires:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+See [`./.env.example`](./.env.example).
+
+The dashboard uses the same Supabase project as the public frontend. Keep the dashboard environment separate from `frontend/.env.local`.
+
+## Operations
+
+The dashboard supports:
+
+- Event creation and management.
+- Guest/registration lists.
+- Payment visibility.
+- QR ticket scanning.
+- Event-aware check-in validation.
+- Duplicate check-in prevention.
+- Host/admin RBAC.
+- Audit and analytics views.
+
+## Production
+
+The dashboard is deployed separately from the public frontend. Configure its environment variables in the dashboard's deployment project before deploying.
+
+For the complete monorepo setup and the frontend authentication/payment environment, see the repository root `README.md`.
