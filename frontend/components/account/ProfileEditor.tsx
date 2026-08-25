@@ -122,8 +122,8 @@ export function ProfileEditor({
       }
 
       await verifyBeforeUpdateEmail(currentUser, nextEmail, {
-        url: `${window.location.origin}/verify-email`,
-        handleCodeInApp: true,
+        url: 'https://www.thesocialscene.club/verify-email',
+        handleCodeInApp: false,
       });
 
       setVerificationSent(true);
