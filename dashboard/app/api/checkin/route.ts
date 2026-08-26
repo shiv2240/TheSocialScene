@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 export const runtime = 'nodejs';
 
 const ALLOWED_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'CHECKIN_STAFF']);
+type RoleRow = { roles: { name?: string } | { name?: string }[] | null };
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,15 +28,14 @@ export async function POST(request: NextRequest) {
       .eq('user_id', staffProfile.id);
     if (roleError) throw roleError;
 
-    const roles = (roleRows || [])
-      .map((row) => {
-        const value = row.roles as unknown as { name?: string } | { name?: string }[] | null;
+    const roles: string[] = (roleRows || [])
+      .map((row: RoleRow): string | undefined => {
+        const value = row.roles;
         return Array.isArray(value) ? value[0]?.name : value?.name;
       })
-      .filter(Boolean)
-      .map(String);
+      .filter((role): role is string => Boolean(role));
 
-    if (!roles.some((role) => ALLOWED_ROLES.has(role))) {
+    if (!roles.some((role: string) => ALLOWED_ROLES.has(role))) {
       return NextResponse.json({ error: 'You do not have check-in permission.' }, { status: 403 });
     }
 
