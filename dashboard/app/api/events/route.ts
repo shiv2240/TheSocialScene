@@ -26,7 +26,7 @@ async function requireEventManager() {
     .from('user_roles')
     .select('roles(name)')
     .eq('user_id', profile.id);
-  if (roleError) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 });
+  if (roleError) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
 
   const typedRoleRows = (roleRows ?? []) as RoleRow[];
   const roles: string[] = [];
