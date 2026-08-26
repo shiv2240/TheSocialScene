@@ -8,6 +8,7 @@ export const runtime = 'nodejs';
 const EVENT_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'EVENT_MANAGER', 'EDITOR']);
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+type RoleRow = { roles: { name?: string } | { name?: string }[] | null };
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,13 +22,13 @@ export async function POST(request: NextRequest) {
 
     const { data: roleRows, error: roleError } = await admin.from('user_roles').select('roles(name)').eq('user_id', profile.id);
     if (roleError) throw roleError;
-    const roles = (roleRows ?? []).flatMap((row: any) => {
+    const roles: string[] = [];
+    for (const row of (roleRows ?? []) as RoleRow[]) {
       const value = row.roles;
-      return Array.isArray(value) ? value.map((r) => r?.name).filter(Boolean) : value?.name ? [value.name] : [];
-    });
-    if (!roles.some((role: string) => EVENT_ROLES.has(role))) {
-      return NextResponse.json({ error: 'You do not have permission to upload event media.' }, { status: 403 });
+      const names = Array.isArray(value) ? value.map((item) => item?.name) : [value?.name];
+      for (const name of names) if (name) roles.push(name);
     }
+    if (!roles.some((role) => EVENT_ROLES.has(role))) return NextResponse.json({ error: 'You do not have permission to upload event media.' }, { status: 403 });
 
     const form = await request.formData();
     const file = form.get('file');
@@ -38,12 +39,7 @@ export async function POST(request: NextRequest) {
     const extension = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/png' ? 'png' : 'webp';
     const path = `covers/${profile.id}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${extension}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
-
-    const { error: uploadError } = await admin.storage.from('event-images').upload(path, bytes, {
-      contentType: file.type,
-      cacheControl: '31536000',
-      upsert: false,
-    });
+    const { error: uploadError } = await admin.storage.from('event-images').upload(path, bytes, { contentType: file.type, cacheControl: '31536000', upsert: false });
     if (uploadError) throw uploadError;
 
     const { data } = admin.storage.from('event-images').getPublicUrl(path);
