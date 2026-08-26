@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 
 const EVENT_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'EVENT_MANAGER', 'EDITOR']);
 const MUTABLE_STATUSES = new Set(['DRAFT', 'PUBLISHED']);
+type RoleRow = { roles: { name?: string } | { name?: string }[] | null };
 
 async function requireEventManager() {
   const supabase = await createClient();
@@ -25,15 +26,17 @@ async function requireEventManager() {
     .from('user_roles')
     .select('roles(name)')
     .eq('user_id', profile.id);
-  if (roleError) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
+  if (roleError) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 });
 
-  const roles = (roleRows || [])
-    .map((row) => {
-      const value = row.roles as unknown as { name?: string } | { name?: string }[] | null;
-      return Array.isArray(value) ? value[0]?.name : value?.name;
-    })
-    .filter(Boolean)
-    .map(String);
+  const typedRoleRows = (roleRows ?? []) as RoleRow[];
+  const roles: string[] = [];
+
+  for (const row of typedRoleRows) {
+    const value = row.roles;
+    const name = Array.isArray(value) ? value[0]?.name : value?.name;
+    if (name) roles.push(name);
+  }
+
   const role = roles.find((value) => EVENT_ROLES.has(value));
 
   if (!role) return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
