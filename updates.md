@@ -5,10 +5,13 @@ This file tracks improvements that are intentionally deferred until the platform
 ## Current Product Decisions
 
 - Authentication remains Firebase-based.
-- Phone login remains available through 2Factor + Firebase.
-- Email-based authentication remains available through Firebase.
-- A user who logs in without a phone number must provide a valid mobile number before booking a ticket.
-- The booking phone number is retained on the user's profile so the team can contact the attendee if an event is cancelled or materially changed.
+- **Primary login:** mobile number → 2Factor OTP → Firebase.
+- **Alternative login:** email → Firebase passwordless magic/login link.
+- Google sign-in remains available as an additional Firebase provider.
+- A user may browse and use the platform after email login without adding a phone number.
+- A user who logs in through email and wants to book a ticket must add a mobile number to their account and verify it through **2Factor OTP** before booking.
+- Phone-login users already have their verified number and do not need to repeat verification during booking.
+- The verified booking phone number is retained on the user's profile so the team can contact the attendee if an event is cancelled or materially changed.
 - The ticket model remains **one General ticket type per event** for the current stage.
 - Razorpay remains the payment gateway.
 - Supabase/PostgreSQL remains the system of record for profiles, events, registrations, orders, payments, tickets, attendance, and audit data.
@@ -153,9 +156,22 @@ Before deletion, verify there are no imports or build-time references to `@backe
 
 Do not migrate to Supabase Auth merely for architectural simplicity.
 
-The current decision is to keep Firebase authentication and the existing 2Factor phone verification flow.
+The current decision is to keep Firebase authentication and 2Factor phone verification.
 
 If authentication is redesigned later, evaluate account linking carefully so users do not end up with duplicate identities across phone/email providers.
+
+## Admin Subdomain
+
+Target production separation:
+
+```text
+thesocialscene.club          → public website
+admin.thesocialscene.club    → admin/dashboard application
+```
+
+The dashboard should be deployed as its own application/project rather than exposed under a public `/dashboard` path.
+
+DNS and hosting configuration must point `admin.thesocialscene.club` to the dashboard deployment and use HTTPS.
 
 ## Operational Rule
 
