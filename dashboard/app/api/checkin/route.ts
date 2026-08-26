@@ -12,16 +12,35 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-    const { data: role } = await supabase.rpc('get_my_dashboard_role');
-    if (!ALLOWED_ROLES.has(String(role))) return NextResponse.json({ error: 'You do not have check-in permission.' }, { status: 403 });
+    const admin = getSupabaseAdmin();
+    const { data: staffProfile, error: staffError } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+    if (staffError) throw staffError;
+    if (!staffProfile) return NextResponse.json({ error: 'Staff profile not found.' }, { status: 400 });
+
+    const { data: roleRows, error: roleError } = await admin
+      .from('user_roles')
+      .select('roles(name)')
+      .eq('user_id', staffProfile.id);
+    if (roleError) throw roleError;
+
+    const roles = (roleRows || [])
+      .map((row) => {
+        const value = row.roles as unknown as { name?: string } | { name?: string }[] | null;
+        return Array.isArray(value) ? value[0]?.name : value?.name;
+      })
+      .filter(Boolean)
+      .map(String);
+
+    if (!roles.some((role) => ALLOWED_ROLES.has(role))) {
+      return NextResponse.json({ error: 'You do not have check-in permission.' }, { status: 403 });
+    }
 
     const { ticketCode, eventId, deviceInfo } = await request.json();
     if (!ticketCode || !eventId) return NextResponse.json({ error: 'Ticket code and event are required.' }, { status: 400 });
-
-    const admin = getSupabaseAdmin();
-    const { data: staffProfile, error: staffError } = await admin.from('profiles').select('id').eq('auth_user_id', user.id).maybeSingle();
-    if (staffError) throw staffError;
-    if (!staffProfile) return NextResponse.json({ error: 'Staff profile not found.' }, { status: 400 });
 
     const { data, error } = await admin.rpc('checkin_ticket', {
       p_ticket_code: String(ticketCode),
