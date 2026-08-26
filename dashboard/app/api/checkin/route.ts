@@ -28,14 +28,16 @@ export async function POST(request: NextRequest) {
       .eq('user_id', staffProfile.id);
     if (roleError) throw roleError;
 
-    const roles: string[] = (roleRows || [])
-      .map((row: RoleRow): string | undefined => {
-        const value = row.roles;
-        return Array.isArray(value) ? value[0]?.name : value?.name;
-      })
-      .filter((role): role is string => Boolean(role));
+    const typedRoleRows = (roleRows ?? []) as RoleRow[];
+    const roles: string[] = [];
 
-    if (!roles.some((role: string) => ALLOWED_ROLES.has(role))) {
+    for (const row of typedRoleRows) {
+      const value = row.roles;
+      const name = Array.isArray(value) ? value[0]?.name : value?.name;
+      if (name) roles.push(name);
+    }
+
+    if (!roles.some((role) => ALLOWED_ROLES.has(role))) {
       return NextResponse.json({ error: 'You do not have check-in permission.' }, { status: 403 });
     }
 
