@@ -31,9 +31,12 @@ export async function POST(request: NextRequest) {
     if (profileError) throw profileError;
     if (!profile) return NextResponse.json({ error: 'Your profile is not ready yet. Please sign in again.' }, { status: 400 });
 
-    // Phone-login users already have an account phone. Email/Google users must
-    // supply a contact number before a registration can be created.
-    if (profile.phone !== phone) {
+    // Phone-login users keep their account number. Email/Google users may attach
+    // a contact number once; afterwards the stored number is protected.
+    if (profile.phone && profile.phone !== phone) {
+      return NextResponse.json({ error: 'The contact number on your account does not match. Update it from your profile before booking.' }, { status: 409 });
+    }
+    if (!profile.phone) {
       const { error: phoneUpdateError } = await supabase.from('profiles').update({ phone, updated_at: new Date().toISOString() }).eq('id', profile.id);
       if (phoneUpdateError) throw phoneUpdateError;
     }
