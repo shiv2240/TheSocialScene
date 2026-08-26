@@ -1,424 +1,137 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  FileText,
-  Image as ImageIcon,
-  Calendar,
-  MapPin,
-  Users,
-  Ticket,
-  CheckSquare,
-  User,
-  Globe,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  Sparkles,
-} from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar, CheckCircle2, FileText, Image as ImageIcon, Loader2, MapPin, Ticket, Users, Upload } from 'lucide-react';
 
-const wizardSteps = [
-  { id: 1, title: 'Basic Information', icon: FileText },
-  { id: 2, title: 'Media & Cover', icon: ImageIcon },
-  { id: 3, title: 'Schedule & Timing', icon: Calendar },
-  { id: 4, title: 'Location & Venue', icon: MapPin },
-  { id: 5, title: 'Capacity & Deadlines', icon: Users },
-  { id: 6, title: 'Ticketing & Pricing', icon: Ticket },
-  { id: 7, title: 'Registration Rules', icon: CheckSquare },
-  { id: 8, title: 'Assign Host', icon: User },
-  { id: 9, title: 'Publishing & Preview', icon: Globe },
+const steps = [
+  'Basic Information', 'Media & Cover', 'Schedule & Timing', 'Location & Venue',
+  'Capacity & Pricing', 'Registration', 'Review & Publish',
 ];
+
+type FormData = {
+  title: string; slug: string; short_description: string; description: string;
+  category_id: string; cover_image: string; start_at: string; end_at: string;
+  venue_name: string; venue_address: string; venue_city: string; google_maps_url: string;
+  capacity: number; registration_deadline: string; price: number; currency: string;
+  registration_enabled: boolean; status: 'DRAFT' | 'PUBLISHED';
+};
+
+const initial: FormData = {
+  title: '', slug: '', short_description: '', description: '', category_id: '', cover_image: '',
+  start_at: '', end_at: '', venue_name: '', venue_address: '', venue_city: 'Bengaluru', google_maps_url: '',
+  capacity: 100, registration_deadline: '', price: 0, currency: 'INR', registration_enabled: true, status: 'DRAFT',
+};
+
+function slugify(value: string) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '').slice(0, 180);
+}
+
+function toIso(value: string) {
+  return value ? new Date(value).toISOString() : '';
+}
 
 export default function EventCreateWizardPage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState<FormData>(initial);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
 
-  // Form State
-  const [formData, setFormData] = useState({
-    title: '',
-    slug: '',
-    short_description: '',
-    description: '',
-    category_id: 'cat-001',
-    cover_image: '',
-    gallery_images: '',
-    start_at: '',
-    end_at: '',
-    venue_name: '',
-    venue_address: '',
-    google_maps_url: '',
-    capacity: 100,
-    registration_deadline: '',
-    is_paid: false,
-    price: 0,
-    currency: 'INR',
-    registration_enabled: true,
-    waitlist_enabled: true,
-    host_name: 'The Social Scene Hosts',
-    status: 'DRAFT',
-  });
-
-  const handleChange = (field: string, value: any) => {
-    setFormData((prev) => {
-      const updated = { ...prev, [field]: value };
-      if (field === 'title') {
-        updated.slug = value
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)+/g, '');
-      }
-      return updated;
-    });
+  const update = <K extends keyof FormData>(field: K, value: FormData[K]) => {
+    setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleFinish = (publishStatus: 'DRAFT' | 'PUBLISHED') => {
-    // Save event & redirect to /events
-    alert(`Event saved successfully as ${publishStatus}!`);
-    router.push('/events');
+  const uploadImage = async (file: File) => {
+    setError('');
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch('/api/events/upload-image', { method: 'POST', body });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to upload image.');
+      update('cover_image', result.url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to upload image.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const validateStep = () => {
+    setError('');
+    if (step === 0 && (!form.title.trim() || form.short_description.trim().length < 10 || form.description.trim().length < 20)) {
+      setError('Add a title, a short summary of at least 10 characters, and a description of at least 20 characters.'); return false;
+    }
+    if (step === 1 && !form.cover_image) { setError('Upload a cover image before continuing.'); return false; }
+    if (step === 2) {
+      if (!form.start_at || !form.end_at) { setError('Start and end date/time are required.'); return false; }
+      if (new Date(form.end_at) <= new Date(form.start_at)) { setError('End time must be after start time.'); return false; }
+    }
+    if (step === 3 && (!form.venue_name.trim() || !form.venue_address.trim() || !form.venue_city.trim())) {
+      setError('Venue name, address and city are required.'); return false;
+    }
+    if (step === 4 && (form.capacity < 1 || form.price < 0)) { setError('Capacity must be at least 1 and price cannot be negative.'); return false; }
+    if (step === 5 && !form.registration_enabled) { setError('Registration must be enabled for a bookable event.'); return false; }
+    return true;
+  };
+
+  const submit = async (status: 'DRAFT' | 'PUBLISHED') => {
+    setError(''); setSaving(true);
+    try {
+      if (!form.cover_image) throw new Error('A cover image is required.');
+      if (new Date(form.end_at) <= new Date(form.start_at)) throw new Error('End time must be after start time.');
+      const response = await fetch('/api/events/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, category_id: form.category_id || null, google_maps_url: form.google_maps_url || null,
+          registration_deadline: form.registration_deadline ? toIso(form.registration_deadline) : null,
+          start_at: toIso(form.start_at), end_at: toIso(form.end_at), status }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to create event.');
+      setSaved(true);
+      setTimeout(() => router.push('/events'), 700);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to create event.');
+    } finally { setSaving(false); }
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
-      {/* Header */}
-      <div>
-        <span className="text-xs font-bold text-purple-400 uppercase tracking-wider block">
-          Step {currentStep} of {wizardSteps.length}
-        </span>
-        <h1 className="text-2xl font-extrabold text-white">Multi-Section Event Creator</h1>
-        <p className="text-xs text-gray-400 mt-1">
-          Configure all metadata before publishing to the public website.
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div><p className="text-xs font-bold text-purple-400 uppercase tracking-wider">Step {step + 1} of {steps.length}</p><h1 className="text-2xl font-extrabold text-white">Create Event</h1><p className="text-xs text-gray-400 mt-1">This form saves to the production event database. No mock data.</p></div>
+        <button onClick={() => router.push('/events')} className="text-xs font-bold text-gray-400 hover:text-white">Cancel</button>
       </div>
 
-      {/* Progress Bar / Step Nav */}
-      <div className="grid grid-cols-3 sm:grid-cols-9 gap-2">
-        {wizardSteps.map((step) => {
-          const Icon = step.icon;
-          const isActive = currentStep === step.id;
-          const isCompleted = currentStep > step.id;
-
-          return (
-            <button
-              key={step.id}
-              onClick={() => setCurrentStep(step.id)}
-              className={`p-3 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all ${
-                isActive
-                  ? 'gradient-bg text-white border-purple-500 shadow-lg shadow-purple-500/20'
-                  : isCompleted
-                  ? 'bg-gray-900 text-emerald-400 border-emerald-500/40'
-                  : 'bg-gray-950 text-gray-500 border-gray-800 hover:text-gray-300'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span className="text-[10px] font-bold truncate w-full hidden sm:block">
-                {step.title}
-              </span>
-            </button>
-          );
-        })}
+      <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
+        {steps.map((label, index) => <button key={label} type="button" onClick={() => index <= step && setStep(index)} className={`rounded-xl border p-2 text-[10px] font-bold ${index === step ? 'bg-purple-600 text-white border-purple-500' : index < step ? 'bg-emerald-950/30 text-emerald-400 border-emerald-700/40' : 'bg-gray-950 text-gray-600 border-gray-800'}`}>{index + 1}. {label}</button>)}
       </div>
 
-      {/* Wizard Form Card */}
       <div className="dashboard-card p-8 rounded-3xl border border-gray-800 space-y-6">
-        {/* Step 1: Basic Info */}
-        {currentStep === 1 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-400" /> Basic Information
-            </h2>
+        {step === 0 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><FileText className="w-5 h-5 text-purple-400"/>Basic Information</h2><input value={form.title} onChange={e => { update('title', e.target.value); if (!form.slug || form.slug === slugify(form.title)) update('slug', slugify(e.target.value)); }} placeholder="Event title" className="field"/><input value={form.slug} onChange={e => update('slug', slugify(e.target.value))} placeholder="event-url-slug" className="field font-mono"/><input value={form.short_description} onChange={e => update('short_description', e.target.value)} placeholder="Short summary" className="field"/><textarea rows={7} value={form.description} onChange={e => update('description', e.target.value)} placeholder="Full event description" className="field"/></section>}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">Event Title</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => handleChange('title', e.target.value)}
-                placeholder="e.g. Acoustic Rooftop Session & Social"
-                className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-              />
-            </div>
+        {step === 1 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><ImageIcon className="w-5 h-5 text-purple-400"/>Media & Cover</h2><label className="block rounded-2xl border-2 border-dashed border-gray-700 hover:border-purple-500 p-8 text-center cursor-pointer"><Upload className="w-8 h-8 mx-auto text-gray-500 mb-3"/><span className="text-sm font-bold text-gray-300">{uploading ? 'Uploading…' : 'Upload cover image'}</span><p className="text-xs text-gray-500 mt-1">JPG, PNG or WebP · maximum 5 MB</p><input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void uploadImage(file); }}/></label>{form.cover_image && <div className="rounded-2xl overflow-hidden border border-gray-800"><img src={form.cover_image} alt="Cover preview" className="w-full max-h-80 object-cover"/></div>}</section>}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">URL Slug (Generated)</label>
-              <input
-                type="text"
-                value={formData.slug}
-                onChange={(e) => handleChange('slug', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-950 border border-gray-800 text-xs font-mono text-purple-300 outline-none"
-              />
-            </div>
+        {step === 2 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Calendar className="w-5 h-5 text-purple-400"/>Schedule & Timing</h2><div className="grid sm:grid-cols-2 gap-4"><label className="text-xs text-gray-400">Start<input type="datetime-local" value={form.start_at} onChange={e => update('start_at', e.target.value)} className="field mt-2"/></label><label className="text-xs text-gray-400">End<input type="datetime-local" value={form.end_at} onChange={e => update('end_at', e.target.value)} className="field mt-2"/></label></div><label className="text-xs text-gray-400">Registration deadline (optional)<input type="datetime-local" value={form.registration_deadline} onChange={e => update('registration_deadline', e.target.value)} className="field mt-2"/></label></section>}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">Short Summary</label>
-              <input
-                type="text"
-                value={formData.short_description}
-                onChange={(e) => handleChange('short_description', e.target.value)}
-                placeholder="Brief one-line summary for discovery cards"
-                className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-              />
-            </div>
+        {step === 3 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><MapPin className="w-5 h-5 text-purple-400"/>Location & Venue</h2><input value={form.venue_name} onChange={e => update('venue_name', e.target.value)} placeholder="Venue name" className="field"/><input value={form.venue_address} onChange={e => update('venue_address', e.target.value)} placeholder="Full venue address" className="field"/><input value={form.venue_city} onChange={e => update('venue_city', e.target.value)} placeholder="City" className="field"/><input value={form.google_maps_url} onChange={e => update('google_maps_url', e.target.value)} placeholder="Google Maps URL (optional)" className="field"/></section>}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">Full Description</label>
-              <textarea
-                rows={4}
-                value={formData.description}
-                onChange={(e) => handleChange('description', e.target.value)}
-                placeholder="Comprehensive breakdown of event agenda, guidelines, and what to expect..."
-                className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-              />
-            </div>
-          </div>
-        )}
+        {step === 4 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Users className="w-5 h-5 text-purple-400"/>Capacity & Pricing</h2><label className="text-xs text-gray-400">Capacity<input type="number" min={1} value={form.capacity} onChange={e => update('capacity', Number(e.target.value))} className="field mt-2"/></label><label className="text-xs text-gray-400">Ticket price (INR)<input type="number" min={0} step="1" value={form.price} onChange={e => update('price', Number(e.target.value))} className="field mt-2"/></label></section>}
 
-        {/* Step 2: Media */}
-        {currentStep === 2 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <ImageIcon className="w-5 h-5 text-purple-400" /> Media & Cover Artwork
-            </h2>
+        {step === 5 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Ticket className="w-5 h-5 text-purple-400"/>Registration</h2><label className="flex items-center gap-3 p-4 rounded-xl bg-gray-950 border border-gray-800 text-sm text-gray-200"><input type="checkbox" checked={form.registration_enabled} onChange={e => update('registration_enabled', e.target.checked)} className="w-4 h-4"/>Allow users to register/book this event</label><p className="text-xs text-gray-500">Ticket type is currently General, as defined by the current product scope.</p></section>}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">Cover Image URL</label>
-              <input
-                type="text"
-                value={formData.cover_image}
-                onChange={(e) => handleChange('cover_image', e.target.value)}
-                placeholder="https://images.unsplash.com/..."
-                className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-              />
-            </div>
+        {step === 6 && <section className="space-y-5"><h2 className="text-lg font-bold text-white flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-purple-400"/>Review & Publish</h2><div className="rounded-2xl bg-gray-950 border border-gray-800 p-5 space-y-2 text-sm"><p><b>Title:</b> {form.title || '—'}</p><p><b>Slug:</b> /{form.slug || '—'}</p><p><b>Venue:</b> {form.venue_name || '—'}, {form.venue_city || '—'}</p><p><b>Capacity:</b> {form.capacity}</p><p><b>Price:</b> ₹{Number(form.price).toLocaleString('en-IN')}</p><p><b>Cover:</b> {form.cover_image ? 'Uploaded' : 'Missing'}</p></div><div className="flex flex-col sm:flex-row gap-3"><button disabled={saving||saved} onClick={() => submit('DRAFT')} className="flex-1 py-3 rounded-xl border border-gray-700 text-white font-bold disabled:opacity-50">{saving ? 'Saving…' : 'Save Draft'}</button><button disabled={saving||saved} onClick={() => submit('PUBLISHED')} className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-bold disabled:opacity-50">{saving ? 'Publishing…' : 'Publish Event'}</button></div></section>}
 
-            {formData.cover_image && (
-              <div className="h-48 w-full rounded-2xl overflow-hidden border border-gray-800">
-                <img src={formData.cover_image} alt="Preview" className="w-full h-full object-cover" />
-              </div>
-            )}
-          </div>
-        )}
+        {error && <p className="rounded-xl bg-red-950/30 border border-red-800/50 p-3 text-xs font-semibold text-red-300">{error}</p>}
+        {saved && <p className="rounded-xl bg-emerald-950/30 border border-emerald-800/50 p-3 text-xs font-semibold text-emerald-300">Event saved successfully. Redirecting…</p>}
 
-        {/* Step 3: Schedule */}
-        {currentStep === 3 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-purple-400" /> Schedule & Timing
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-300 uppercase">Start Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={formData.start_at}
-                  onChange={(e) => handleChange('start_at', e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white outline-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-300 uppercase">End Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={formData.end_at}
-                  onChange={(e) => handleChange('end_at', e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white outline-none"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 4: Location */}
-        {currentStep === 4 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-purple-400" /> Venue & Location
-            </h2>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">Venue Name</label>
-              <input
-                type="text"
-                value={formData.venue_name}
-                onChange={(e) => handleChange('venue_name', e.target.value)}
-                placeholder="The Social House Indiranagar"
-                className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">Address & Google Maps Link</label>
-              <input
-                type="text"
-                value={formData.google_maps_url}
-                onChange={(e) => handleChange('google_maps_url', e.target.value)}
-                placeholder="https://maps.google.com/..."
-                className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Step 5: Capacity */}
-        {currentStep === 5 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-purple-400" /> Capacity Management
-            </h2>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">Maximum Capacity (Seats)</label>
-              <input
-                type="number"
-                value={formData.capacity}
-                onChange={(e) => handleChange('capacity', parseInt(e.target.value) || 0)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white outline-none"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Step 6: Ticketing */}
-        {currentStep === 6 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Ticket className="w-5 h-5 text-purple-400" /> Ticketing & Pricing
-            </h2>
-
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-xs font-semibold text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.is_paid}
-                  onChange={(e) => handleChange('is_paid', e.target.checked)}
-                  className="rounded bg-gray-900 border-gray-700 text-purple-600 focus:ring-0 w-4 h-4"
-                />
-                Is Paid Event (Requires Payment Integration)
-              </label>
-            </div>
-
-            {formData.is_paid && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-300 uppercase">Ticket Price (INR ₹)</label>
-                <input
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => handleChange('price', parseFloat(e.target.value) || 0)}
-                  className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white outline-none"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Step 7: Registration Rules */}
-        {currentStep === 7 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <CheckSquare className="w-5 h-5 text-purple-400" /> Registration & Waitlist Policy
-            </h2>
-
-            <div className="space-y-3">
-              <label className="flex items-center gap-2 text-xs font-semibold text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.registration_enabled}
-                  onChange={(e) => handleChange('registration_enabled', e.target.checked)}
-                  className="rounded bg-gray-900 border-gray-700 text-purple-600 w-4 h-4"
-                />
-                Allow User Registration
-              </label>
-
-              <label className="flex items-center gap-2 text-xs font-semibold text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.waitlist_enabled}
-                  onChange={(e) => handleChange('waitlist_enabled', e.target.checked)}
-                  className="rounded bg-gray-900 border-gray-700 text-purple-600 w-4 h-4"
-                />
-                Enable Waitlist when capacity reaches 100%
-              </label>
-            </div>
-          </div>
-        )}
-
-        {/* Step 8: Host */}
-        {currentStep === 8 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <User className="w-5 h-5 text-purple-400" /> Assign Host Profile
-            </h2>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300 uppercase">Primary Host</label>
-              <select
-                value={formData.host_name}
-                onChange={(e) => handleChange('host_name', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-white outline-none"
-              >
-                <option value="Bengaluru Runners Club">Bengaluru Runners Club</option>
-                <option value="Acoustic Underground">Acoustic Underground</option>
-                <option value="Tech Collective India">Tech Collective India</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Step 9: Publishing & Preview */}
-        {currentStep === 9 && (
-          <div className="space-y-6">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Globe className="w-5 h-5 text-purple-400" /> Final Review & Publish
-            </h2>
-
-            <div className="p-4 rounded-2xl bg-gray-900/90 border border-gray-800 space-y-2 text-xs">
-              <p className="text-gray-300"><strong className="text-white">Title:</strong> {formData.title || 'Untitled Event'}</p>
-              <p className="text-gray-300"><strong className="text-white">Slug:</strong> /{formData.slug}</p>
-              <p className="text-gray-300"><strong className="text-white">Capacity:</strong> {formData.capacity} Seats</p>
-              <p className="text-gray-300"><strong className="text-white">Price:</strong> ₹{formData.price}</p>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => handleFinish('DRAFT')}
-                className="flex-1 py-3.5 rounded-xl bg-gray-800 text-gray-300 font-bold text-xs hover:text-white border border-gray-700"
-              >
-                Save as Draft
-              </button>
-
-              <button
-                onClick={() => handleFinish('PUBLISHED')}
-                className="flex-1 py-3.5 rounded-xl gradient-bg text-white font-bold text-xs shadow-xl shadow-purple-500/20 hover:opacity-90 flex items-center justify-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                Publish Event Instantly
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Wizard Controls Footer */}
-        <div className="flex items-center justify-between pt-6 border-t border-gray-800/80">
-          <button
-            disabled={currentStep === 1}
-            onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
-            className="px-5 py-2.5 rounded-xl bg-gray-900 border border-gray-800 text-xs font-semibold text-gray-400 hover:text-white disabled:opacity-40 flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" /> Previous
-          </button>
-
-          {currentStep < 9 && (
-            <button
-              onClick={() => setCurrentStep((prev) => Math.min(9, prev + 1))}
-              className="px-6 py-2.5 rounded-xl gradient-bg text-xs font-bold text-white shadow-md flex items-center gap-2"
-            >
-              Next Step <ArrowRight className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        {step < steps.length - 1 && <div className="flex justify-between pt-4 border-t border-gray-800"><button type="button" disabled={step===0} onClick={() => setStep(Math.max(0, step-1))} className="px-4 py-3 rounded-xl border border-gray-700 text-sm font-bold disabled:opacity-30"><ArrowLeft className="w-4 h-4 inline mr-2"/>Back</button><button type="button" onClick={() => validateStep() && setStep(step+1)} className="px-5 py-3 rounded-xl bg-purple-600 text-white text-sm font-bold">Next<ArrowRight className="w-4 h-4 inline ml-2"/></button></div>}
       </div>
+
+      <style jsx>{`.field{width:100%;padding:.75rem 1rem;border-radius:.75rem;background:#111827;border:1px solid #1f2937;color:white;font-size:.75rem;outline:none}.field:focus{border-color:#8b5cf6}`}</style>
     </div>
   );
 }
