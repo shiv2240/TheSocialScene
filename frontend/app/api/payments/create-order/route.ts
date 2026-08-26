@@ -13,7 +13,7 @@ const requestSchema = z.object({
 function getRazorpayAuth() {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keyId || !keySecret) throw new Error('Razorpay test credentials are not configured on the server.');
+  if (!keyId || !keySecret) throw new Error('Razorpay credentials are not configured on the server.');
   return { keyId, auth: Buffer.from(`${keyId}:${keySecret}`).toString('base64') };
 }
 
@@ -31,14 +31,13 @@ export async function POST(request: NextRequest) {
     if (profileError) throw profileError;
     if (!profile) return NextResponse.json({ error: 'Your profile is not ready yet. Please sign in again.' }, { status: 400 });
 
-    // Phone-login users keep their account number. Email/Google users may attach
-    // a contact number once; afterwards the stored number is protected.
-    if (profile.phone && profile.phone !== phone) {
-      return NextResponse.json({ error: 'The contact number on your account does not match. Update it from your profile before booking.' }, { status: 409 });
+    // A phone number is not considered a booking contact until it has been
+    // verified through the dedicated 2Factor account-linking flow.
+    if (!profile.phone || !profile.phone_verified) {
+      return NextResponse.json({ error: 'Please verify your mobile number with OTP before booking.' }, { status: 409 });
     }
-    if (!profile.phone) {
-      const { error: phoneUpdateError } = await supabase.from('profiles').update({ phone, updated_at: new Date().toISOString() }).eq('id', profile.id);
-      if (phoneUpdateError) throw phoneUpdateError;
+    if (profile.phone !== phone) {
+      return NextResponse.json({ error: 'The verified contact number on your account does not match.' }, { status: 409 });
     }
 
     const { data: event, error: eventError } = await supabase.from('events').select('id,title,price,currency,capacity,registered_count,status,registration_open').eq('slug', slug).eq('status', 'PUBLISHED').maybeSingle();
