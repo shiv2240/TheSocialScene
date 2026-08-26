@@ -12,12 +12,6 @@ async function requireEventManager() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: 'Authentication required.' }, { status: 401 }) };
 
-  const { data: role, error: roleError } = await supabase.rpc('get_my_dashboard_role');
-  if (roleError) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
-  if (!EVENT_ROLES.has(String(role))) {
-    return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
-  }
-
   const admin = getSupabaseAdmin();
   const { data: profile, error: profileError } = await admin
     .from('profiles')
@@ -27,7 +21,24 @@ async function requireEventManager() {
   if (profileError) return { error: NextResponse.json({ error: 'Unable to load staff profile.' }, { status: 500 }) };
   if (!profile) return { error: NextResponse.json({ error: 'Staff profile not found.' }, { status: 400 }) };
 
-  return { supabase, admin, user, profile, role: String(role) };
+  const { data: roleRows, error: roleError } = await admin
+    .from('user_roles')
+    .select('roles(name)')
+    .eq('user_id', profile.id);
+  if (roleError) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
+
+  const roles = (roleRows || [])
+    .map((row) => {
+      const value = row.roles as unknown as { name?: string } | { name?: string }[] | null;
+      return Array.isArray(value) ? value[0]?.name : value?.name;
+    })
+    .filter(Boolean)
+    .map(String);
+  const role = roles.find((value) => EVENT_ROLES.has(value));
+
+  if (!role) return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
+
+  return { supabase, admin, user, profile, role };
 }
 
 export async function GET() {
