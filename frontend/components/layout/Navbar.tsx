@@ -2,13 +2,10 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Search, User, Ticket, Menu, X, Compass, LogOut } from 'lucide-react';
+import { Search, User, Ticket, Menu, X, Compass, LogOut, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-interface CurrentProfile {
-  full_name?: string | null;
-  email?: string | null;
-}
+interface CurrentProfile { full_name?: string | null; email?: string | null; }
 
 export function Navbar() {
   const router = useRouter();
@@ -20,18 +17,11 @@ export function Navbar() {
   const loadSession = useCallback(async () => {
     try {
       const response = await fetch('/api/profile', { cache: 'no-store' });
-      if (!response.ok) {
-        setSignedIn(false);
-        setProfile(null);
-        return;
-      }
+      if (!response.ok) { setSignedIn(false); setProfile(null); return; }
       const body = await response.json();
       setSignedIn(true);
       setProfile(body.profile ?? null);
-    } catch {
-      setSignedIn(false);
-      setProfile(null);
-    }
+    } catch { setSignedIn(false); setProfile(null); }
   }, []);
 
   useEffect(() => {
@@ -52,14 +42,10 @@ export function Navbar() {
     setSigningOut(true);
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      setSignedIn(false);
-      setProfile(null);
+      setSignedIn(false); setProfile(null);
       window.dispatchEvent(new Event('tss:profile-updated'));
-      router.replace('/');
-      router.refresh();
-    } finally {
-      setSigningOut(false);
-    }
+      router.replace('/'); router.refresh();
+    } finally { setSigningOut(false); }
   };
 
   return (
@@ -75,6 +61,7 @@ export function Navbar() {
             <Link href="/events" className="text-sm font-bold text-gray-200 hover:text-[#c85a3c] transition-colors flex items-center gap-2"><Compass className="w-4 h-4 text-[#c85a3c]" />Discover Events & Treks</Link>
             <Link href="/categories" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">Categories</Link>
             <Link href="/hosts/social-club" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">Top Hosts</Link>
+            <Link href="/become-a-host" className="text-sm font-extrabold text-[#e59838] hover:text-white transition-colors flex items-center gap-1.5"><Sparkles className="w-4 h-4" />Become a Host</Link>
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
@@ -89,7 +76,7 @@ export function Navbar() {
           </div>
         </div>
 
-        {mobileMenuOpen && <div className="md:hidden py-4 border-t border-white/10 space-y-3"><Link href="/events" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Discover Events & Treks</Link><Link href="/categories" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Categories</Link><Link href="/tickets" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Tickets</Link>{signedIn && <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Profile</Link>}{signedIn && <button onClick={signOut} className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Sign Out</button>}</div>}
+        {mobileMenuOpen && <div className="md:hidden py-4 border-t border-white/10 space-y-3"><Link href="/events" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Discover Events & Treks</Link><Link href="/categories" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Categories</Link><Link href="/become-a-host" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-extrabold text-[#e59838] hover:bg-[#231f2b]">Become a Host</Link><Link href="/tickets" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Tickets</Link>{signedIn && <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Profile</Link>}{signedIn && <button onClick={signOut} className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Sign Out</button>}</div>}
       </div>
     </header>
   );
