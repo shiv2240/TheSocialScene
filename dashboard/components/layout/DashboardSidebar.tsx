@@ -12,6 +12,7 @@ const navigationItems = [
   { name: 'Create Event', href: '/events/create', icon: PlusCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'EDITOR'] },
   { name: 'Check-in Scanner', href: '/scanner', icon: QrCode, roles: ['SUPER_ADMIN', 'ADMIN', 'HOST', 'CHECKIN_STAFF', 'EVENT_MANAGER'] },
   { name: 'Registrations', href: '/registrations', icon: UserCheck, roles: ['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'SUPPORT'] },
+  { name: 'User & Roles', href: '/users', icon: Users, roles: ['SUPER_ADMIN'] },
   { name: 'Hosts', href: '/hosts', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { name: 'Venues', href: '/venues', icon: MapPin, roles: ['SUPER_ADMIN', 'ADMIN', 'EDITOR'] },
   { name: 'Categories', href: '/categories', icon: Tag, roles: ['SUPER_ADMIN', 'ADMIN', 'EDITOR'] },
