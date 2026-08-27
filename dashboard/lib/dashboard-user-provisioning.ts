@@ -16,7 +16,7 @@ const dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'https://admin.the
 const resendFrom = process.env.RESEND_FROM_EMAIL || 'The Social Scene <no-reply@auth.thesocialscene.club>';
 
 function escapeHtml(value: string) {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
 async function sendInvitationEmail(input: { email: string; fullName: string; role: string; actionLink: string }) {
@@ -42,8 +42,22 @@ async function sendInvitationEmail(input: { email: string; fullName: string; rol
 
   if (!response.ok) {
     const body = await response.text();
-    console.error('[DASHBOARD INVITATION][RESEND]', response.status, body);
-    throw new Error('Error sending invite email');
+    console.error('[DASHBOARD INVITATION][RESEND]', {
+      status: response.status,
+      from: resendFrom,
+      recipient: input.email,
+      response: body,
+    });
+
+    let providerMessage = body;
+    try {
+      const parsed = JSON.parse(body) as { message?: string; name?: string };
+      providerMessage = parsed.message || parsed.name || body;
+    } catch {
+      // Keep the raw provider response when it is not JSON.
+    }
+
+    throw new Error(`Resend rejected the invitation email (${response.status}): ${providerMessage}`);
   }
 }
 
