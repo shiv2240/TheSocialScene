@@ -1,6 +1,7 @@
 import React from 'react';
 import { DashboardSidebar } from '../../components/layout/DashboardSidebar';
 import { DashboardHeader } from '../../components/layout/DashboardHeader';
+import { DashboardRouteGuard } from '../../components/layout/DashboardRouteGuard';
 import { requireDashboardAuth } from '@/lib/auth';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -11,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <DashboardSidebar role={role} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto">{children}</main>
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto"><DashboardRouteGuard role={role}>{children}</DashboardRouteGuard></main>
       </div>
     </div>
   );
