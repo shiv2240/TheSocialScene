@@ -34,29 +34,22 @@ type EventRow = {
   updated_at: string | null;
 };
 
-type CategoryRow = {
-  id: string;
-  name: string | null;
-};
-
-type VenueRow = {
-  id: string;
-  name: string | null;
-  address: string | null;
-  city: string | null;
-};
+type CategoryRow = { id: string; name: string | null };
+type VenueRow = { id: string; name: string | null; address: string | null; city: string | null };
 
 async function requireEventManager() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: 'Authentication required.' }, { status: 401 }) };
 
-  let admin;
+  // Prefer the service-role client when configured. If the dashboard deployment
+  // does not have SUPABASE_SERVICE_ROLE_KEY, fall back to the authenticated
+  // server client so staff RBAC can still be evaluated through Supabase RLS.
+  let admin = supabase;
   try {
     admin = getSupabaseAdmin();
   } catch (error) {
-    console.error('[ADMIN EVENTS][SUPABASE CONFIG]', error);
-    return { error: NextResponse.json({ error: 'Dashboard database configuration is unavailable.' }, { status: 500 }) };
+    console.warn('[ADMIN EVENTS][SUPABASE ADMIN FALLBACK]', error);
   }
 
   const { data: profile, error: profileError } = await admin
@@ -70,9 +63,6 @@ async function requireEventManager() {
   }
   if (!profile) return { error: NextResponse.json({ error: 'Staff profile not found.' }, { status: 400 }) };
 
-  // Do not rely on PostgREST relationship embedding for RBAC. The dashboard has
-  // already experienced schema-cache/relationship failures in this area, so keep
-  // authorization checks to independent primary-key queries.
   const { data: roleRows, error: roleError } = await admin
     .from('user_roles')
     .select('role_id')
@@ -83,9 +73,7 @@ async function requireEventManager() {
   }
 
   const roleIds = [...new Set(((roleRows ?? []) as RoleIdRow[]).map((row) => row.role_id).filter((id): id is string => Boolean(id)))];
-  if (!roleIds.length) {
-    return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
-  }
+  if (!roleIds.length) return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
 
   const { data: roleDefinitions, error: rolesError } = await admin
     .from('roles')
@@ -110,8 +98,6 @@ export async function GET() {
   if ('error' in auth) return auth.error;
 
   try {
-    // Deployment-sync marker: keep this GET path deliberately free of relational
-    // embedding so it remains compatible with the current Supabase schema cache.
     const { data: rows, error: eventsError } = await auth.admin
       .from('events')
       .select(`
