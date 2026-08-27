@@ -8,15 +8,11 @@ export const runtime = 'nodejs';
 export async function POST(request: NextRequest) {
   try {
     const { idToken } = await request.json();
-    if (!idToken || typeof idToken !== 'string') {
-      return NextResponse.json({ error: 'Missing Firebase ID token.' }, { status: 400 });
-    }
+    if (!idToken || typeof idToken !== 'string') return NextResponse.json({ error: 'Missing Firebase ID token.' }, { status: 400 });
 
     const firebaseAuth = getFirebaseAdminAuth();
     const decoded = await firebaseAuth.verifyIdToken(idToken, true);
-    const sessionCookie = await firebaseAuth.createSessionCookie(idToken, {
-      expiresIn: FIREBASE_SESSION_MAX_AGE,
-    });
+    const sessionCookie = await firebaseAuth.createSessionCookie(idToken, { expiresIn: FIREBASE_SESSION_MAX_AGE });
 
     const supabase = getSupabaseAdmin();
     const lookupFilters = [`firebase_uid.eq.${decoded.uid}`];
@@ -25,21 +21,24 @@ export async function POST(request: NextRequest) {
 
     const { data: existingProfile, error: findError } = await supabase
       .from('profiles')
-      .select('id, phone, phone_verified, firebase_uid, email')
+      .select('id, phone, phone_verified, firebase_uid, email, onboarding_completed')
       .or(lookupFilters.join(','))
       .limit(1)
       .maybeSingle();
-
     if (findError) throw findError;
 
     const profilePayload: Record<string, unknown> = {
       firebase_uid: decoded.uid,
-      email: decoded.email ?? existingProfile?.email ?? null,
-      email_verified: Boolean(decoded.email_verified),
-      full_name: decoded.name ?? 'The Social Scene Member',
       updated_at: new Date().toISOString(),
     };
 
+    // Authentication metadata must not overwrite the user's immutable identity.
+    // Name/age/username are established during onboarding and protected in DB.
+    if (!existingProfile?.onboarding_completed && decoded.name) profilePayload.full_name = decoded.name;
+    if (decoded.email) {
+      profilePayload.email = decoded.email;
+      profilePayload.email_verified = Boolean(decoded.email_verified);
+    }
     if (decoded.phone_number && !existingProfile?.phone) {
       profilePayload.phone = decoded.phone_number;
       profilePayload.phone_verified = true;
@@ -50,7 +49,15 @@ export async function POST(request: NextRequest) {
       const { error: updateError } = await supabase.from('profiles').update(profilePayload).eq('id', profileId);
       if (updateError) throw updateError;
     } else {
-      const { data: inserted, error: insertError } = await supabase.from('profiles').insert(profilePayload).select('id').single();
+      const { data: inserted, error: insertError } = await supabase.from('profiles').insert({
+        ...profilePayload,
+        phone: decoded.phone_number ?? null,
+        phone_verified: Boolean(decoded.phone_number),
+        email: decoded.email ?? null,
+        email_verified: Boolean(decoded.email_verified),
+        full_name: decoded.name ?? 'The Social Scene Member',
+        onboarding_completed: false,
+      }).select('id').single();
       if (insertError) throw insertError;
       profileId = inserted.id;
     }
@@ -65,9 +72,6 @@ export async function POST(request: NextRequest) {
     });
     return response;
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unable to establish authentication session.' },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to establish authentication session.' }, { status: 401 });
   }
 }
