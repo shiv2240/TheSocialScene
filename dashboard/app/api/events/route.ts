@@ -6,36 +6,62 @@ export const runtime = 'nodejs';
 
 const EVENT_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'EVENT_MANAGER', 'EDITOR']);
 const MUTABLE_STATUSES = new Set(['DRAFT', 'PUBLISHED']);
-type RoleRow = { roles: { name?: string } | { name?: string }[] | null };
+type RoleIdRow = { role_id: string | null };
+type RoleNameRow = { id: string; name: string | null };
 
 async function requireEventManager() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: 'Authentication required.' }, { status: 401 }) };
 
-  const admin = getSupabaseAdmin();
+  let admin;
+  try {
+    admin = getSupabaseAdmin();
+  } catch (error) {
+    console.error('[ADMIN EVENTS][SUPABASE CONFIG]', error);
+    return { error: NextResponse.json({ error: 'Dashboard database configuration is unavailable.' }, { status: 500 }) };
+  }
+
   const { data: profile, error: profileError } = await admin
     .from('profiles')
     .select('id,full_name')
     .eq('auth_user_id', user.id)
     .maybeSingle();
-  if (profileError) return { error: NextResponse.json({ error: 'Unable to load staff profile.' }, { status: 500 }) };
+  if (profileError) {
+    console.error('[ADMIN EVENTS][PROFILE]', profileError);
+    return { error: NextResponse.json({ error: 'Unable to load staff profile.' }, { status: 500 }) };
+  }
   if (!profile) return { error: NextResponse.json({ error: 'Staff profile not found.' }, { status: 400 }) };
 
+  // Do not rely on PostgREST relationship embedding for RBAC. The dashboard has
+  // already experienced schema-cache/relationship failures in this area, so keep
+  // authorization checks to independent primary-key queries.
   const { data: roleRows, error: roleError } = await admin
     .from('user_roles')
-    .select('roles(name)')
+    .select('role_id')
     .eq('user_id', profile.id);
-  if (roleError) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
-
-  const typedRoleRows = (roleRows ?? []) as RoleRow[];
-  const roles: string[] = [];
-  for (const row of typedRoleRows) {
-    const value = row.roles;
-    const name = Array.isArray(value) ? value[0]?.name : value?.name;
-    if (name) roles.push(name);
+  if (roleError) {
+    console.error('[ADMIN EVENTS][USER ROLES]', roleError);
+    return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
   }
 
+  const roleIds = [...new Set(((roleRows ?? []) as RoleIdRow[]).map((row) => row.role_id).filter((id): id is string => Boolean(id)))];
+  if (!roleIds.length) {
+    return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
+  }
+
+  const { data: roleDefinitions, error: rolesError } = await admin
+    .from('roles')
+    .select('id,name')
+    .in('id', roleIds);
+  if (rolesError) {
+    console.error('[ADMIN EVENTS][ROLES]', rolesError);
+    return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
+  }
+
+  const roles = ((roleDefinitions ?? []) as RoleNameRow[])
+    .map((row) => row.name)
+    .filter((name): name is string => Boolean(name));
   const role = roles.find((value) => EVENT_ROLES.has(value));
   if (!role) return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
 
