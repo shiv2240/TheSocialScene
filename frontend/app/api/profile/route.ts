@@ -12,7 +12,18 @@ const profileSchema = z.object({
   marketing_opt_in: z.boolean().optional(),
 });
 
-const profileSelect = 'id, full_name, phone, phone_verified, email, email_verified, marketing_opt_in, status, created_at';
+const onboardingSchema = z.object({
+  full_name: z.string().trim().min(2).max(100),
+  age: z.coerce.number().int().min(13).max(120),
+});
+
+const profileSelect = 'id, full_name, username, age, onboarding_completed, phone, phone_verified, email, email_verified, marketing_opt_in, status, created_at';
+
+function makeUsername(fullName: string) {
+  const base = fullName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '').slice(0, 24) || 'member';
+  const suffix = Math.random().toString(36).slice(2, 7);
+  return `${base}_${suffix}`.slice(0, 32);
+}
 
 export async function GET() {
   const user = await getCurrentFirebaseUser();
@@ -29,6 +40,58 @@ export async function GET() {
   return NextResponse.json({ profile });
 }
 
+export async function POST(request: NextRequest) {
+  const user = await getCurrentFirebaseUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const parsed = onboardingSchema.safeParse(await request.json());
+  if (!parsed.success) return NextResponse.json({ error: 'Enter a valid full name and age.' }, { status: 400 });
+
+  const supabase = getSupabaseAdmin();
+  const { data: current, error: currentError } = await supabase
+    .from('profiles')
+    .select('id, onboarding_completed')
+    .eq('firebase_uid', user.uid)
+    .maybeSingle();
+
+  if (currentError) return NextResponse.json({ error: currentError.message }, { status: 500 });
+  if (!current) return NextResponse.json({ error: 'Your profile is not ready yet. Please sign in again.' }, { status: 400 });
+  if (current.onboarding_completed) return NextResponse.json({ error: 'Onboarding has already been completed.' }, { status: 409 });
+
+  let profile: Record<string, unknown> | null = null;
+  let lastError: { code?: string; message?: string } | null = null;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const username = makeUsername(parsed.data.full_name);
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: parsed.data.full_name,
+        age: parsed.data.age,
+        username,
+        onboarding_completed: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('firebase_uid', user.uid)
+      .eq('onboarding_completed', false)
+      .select(profileSelect)
+      .single();
+
+    if (!error) {
+      profile = data as Record<string, unknown>;
+      break;
+    }
+    lastError = error;
+    if (error.code !== '23505') break;
+  }
+
+  if (!profile) {
+    return NextResponse.json({ error: lastError?.message || 'Unable to complete onboarding.' }, { status: lastError?.code === '23505' ? 409 : 400 });
+  }
+
+  return NextResponse.json({ profile });
+}
+
 export async function PATCH(request: NextRequest) {
   const user = await getCurrentFirebaseUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -37,7 +100,7 @@ export async function PATCH(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'Enter valid profile details.' }, { status: 400 });
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (parsed.data.full_name !== undefined) updates.full_name = parsed.data.full_name;
+  // Full name is intentionally NOT accepted here. It is immutable after onboarding.
   if (parsed.data.marketing_opt_in !== undefined) updates.marketing_opt_in = parsed.data.marketing_opt_in;
 
   if (parsed.data.email !== undefined && parsed.data.email_verified !== true) {
