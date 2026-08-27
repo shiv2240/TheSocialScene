@@ -73,9 +73,8 @@ export async function GET() {
   if ('error' in auth) return auth.error;
 
   try {
-    // Keep the base event query independent from PostgREST relationship embedding.
-    // The events table has several profile FKs and relationship/schema-cache changes
-    // can make embedded selects fail even when the base table is healthy.
+    // Deployment-sync marker: keep this GET path deliberately free of relational
+    // embedding so it remains compatible with the current Supabase schema cache.
     const { data: rows, error: eventsError } = await auth.admin
       .from('events')
       .select(`
