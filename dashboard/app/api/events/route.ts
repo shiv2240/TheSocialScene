@@ -9,6 +9,43 @@ const MUTABLE_STATUSES = new Set(['DRAFT', 'PUBLISHED']);
 type RoleIdRow = { role_id: string | null };
 type RoleNameRow = { id: string; name: string | null };
 
+type EventRow = {
+  id: string;
+  title: string | null;
+  slug: string | null;
+  short_description: string | null;
+  description: string | null;
+  category_id: string | null;
+  host_id: string | null;
+  venue_id: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  capacity: number | null;
+  registered_count: number | null;
+  registration_deadline: string | null;
+  price: number | null;
+  currency: string | null;
+  cover_image: string | null;
+  status: string | null;
+  featured: boolean | null;
+  registration_open: boolean | null;
+  published_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type CategoryRow = {
+  id: string;
+  name: string | null;
+};
+
+type VenueRow = {
+  id: string;
+  name: string | null;
+  address: string | null;
+  city: string | null;
+};
+
 async function requireEventManager() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -87,9 +124,9 @@ export async function GET() {
 
     if (eventsError) throw eventsError;
 
-    const events = rows || [];
-    const categoryIds = [...new Set(events.map((event) => event.category_id).filter(Boolean))];
-    const venueIds = [...new Set(events.map((event) => event.venue_id).filter(Boolean))];
+    const events = (rows ?? []) as EventRow[];
+    const categoryIds = [...new Set(events.map((event: EventRow) => event.category_id).filter((id): id is string => Boolean(id)))];
+    const venueIds = [...new Set(events.map((event: EventRow) => event.venue_id).filter((id): id is string => Boolean(id)))];
 
     const [{ data: categories, error: categoriesError }, { data: venues, error: venuesError }] = await Promise.all([
       categoryIds.length
@@ -103,10 +140,12 @@ export async function GET() {
     if (categoriesError) throw categoriesError;
     if (venuesError) throw venuesError;
 
-    const categoryMap = new Map((categories || []).map((category) => [category.id, category]));
-    const venueMap = new Map((venues || []).map((venue) => [venue.id, venue]));
+    const categoryRows = (categories ?? []) as CategoryRow[];
+    const venueRows = (venues ?? []) as VenueRow[];
+    const categoryMap = new Map(categoryRows.map((category: CategoryRow) => [category.id, category]));
+    const venueMap = new Map(venueRows.map((venue: VenueRow) => [venue.id, venue]));
 
-    const enrichedEvents = events.map((event) => ({
+    const enrichedEvents = events.map((event: EventRow) => ({
       ...event,
       category: event.category_id ? categoryMap.get(event.category_id) || null : null,
       venue: event.venue_id ? venueMap.get(event.venue_id) || null : null,
