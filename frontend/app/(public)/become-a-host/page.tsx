@@ -1,0 +1,135 @@
+'use client';
+
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight, CheckCircle2, Instagram, Globe2, Users, CalendarDays, ShieldCheck, Loader2 } from 'lucide-react';
+import { Navbar } from '@/components/layout/Navbar';
+import { Footer } from '@/components/layout/Footer';
+
+const EVENT_TYPES = ['Social & Nightlife', 'Music & Concerts', 'Fitness & Wellness', 'Outdoor Treks', 'Tech & Networking', 'Art & Workshops', 'Food & Culinary', 'Other'];
+
+export default function BecomeAHostPage() {
+  const [form, setForm] = useState({
+    full_name: '', email: '', phone: '', organization_name: '', city: '', event_types: [] as string[],
+    experience: '', proposed_event: '', expected_frequency: '', instagram: '', website: '', why_host: '', website_check: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+
+  const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const toggleEventType = (type: string) => setForm((current) => ({
+    ...current,
+    event_types: current.event_types.includes(type) ? current.event_types.filter((item) => item !== type) : [...current.event_types, type],
+  }));
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    if (!form.event_types.length) return setError('Select at least one event type.');
+    if (form.why_host.trim().length < 20) return setError('Tell us a little more about why you want to host.');
+
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/host-applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Unable to submit application.');
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to submit application.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#141217] text-gray-100 flex flex-col">
+      <Navbar />
+      <main className="flex-1">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-10">
+          <div className="max-w-3xl">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#c85a3c]/10 border border-[#c85a3c]/30 text-[#e59838] text-[11px] font-extrabold uppercase tracking-wider">
+              <ShieldCheck className="w-3.5 h-3.5" /> Host Applications Open
+            </span>
+            <h1 className="mt-5 text-4xl sm:text-5xl font-black tracking-tight text-white">Turn your community into an experience.</h1>
+            <p className="mt-4 text-sm sm:text-base text-gray-400 leading-relaxed max-w-2xl">
+              Apply to host events on The Social Scene. We review every application before granting dashboard access, so hosts can focus on their events, attendees and sales without seeing platform-wide data.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-[0.75fr_1.25fr] gap-8 mt-10 items-start">
+            <div className="space-y-4 lg:sticky lg:top-28">
+              {[
+                [Users, 'Own your community', 'Build events around the people and experiences you genuinely care about.'],
+                [CalendarDays, 'Run events from one dashboard', 'Create drafts, manage registrations and track event performance.'],
+                [CheckCircle2, 'Controlled access', 'Hosts only see the events and performance data assigned to them.'],
+              ].map(([Icon, title, text]) => {
+                const FeatureIcon = Icon as typeof Users;
+                return <div key={title as string} className="glass-card p-5 rounded-2xl border border-white/10"><FeatureIcon className="w-5 h-5 text-[#c85a3c]" /><h3 className="mt-3 text-sm font-extrabold text-white">{title as string}</h3><p className="mt-1.5 text-xs leading-relaxed text-gray-400">{text as string}</p></div>;
+              })}
+            </div>
+
+            <div className="glass-card rounded-3xl border border-white/10 p-6 sm:p-8">
+              {submitted ? (
+                <div className="py-12 text-center">
+                  <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto"><CheckCircle2 className="w-7 h-7 text-emerald-400" /></div>
+                  <h2 className="mt-5 text-2xl font-black text-white">Application received.</h2>
+                  <p className="mt-3 text-sm text-gray-400 leading-relaxed max-w-md mx-auto">Our team will review your application. If approved, we will create your host dashboard account and send an invitation to the email address you provided.</p>
+                  <Link href="/events" className="inline-flex items-center gap-2 mt-7 px-5 py-3 rounded-xl gradient-terracotta text-xs font-extrabold text-white">Explore Events <ArrowRight className="w-4 h-4" /></Link>
+                </div>
+              ) : (
+                <form onSubmit={submit} className="space-y-7">
+                  <div><h2 className="text-xl font-black text-white">Become a host</h2><p className="mt-1 text-xs text-gray-500">Tell us enough to understand what you want to build.</p></div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Field label="Full name" value={form.full_name} onChange={(value) => update('full_name', value)} required />
+                    <Field label="Email address" type="email" value={form.email} onChange={(value) => update('email', value)} required />
+                    <Field label="Phone number" value={form.phone} onChange={(value) => update('phone', value)} />
+                    <Field label="City" value={form.city} onChange={(value) => update('city', value)} required />
+                    <Field label="Organization / community" value={form.organization_name} onChange={(value) => update('organization_name', value)} />
+                    <Field label="Expected frequency" placeholder="e.g. 2 events / month" value={form.expected_frequency} onChange={(value) => update('expected_frequency', value)} />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-gray-300 block mb-2">What do you want to host?</label>
+                    <div className="flex flex-wrap gap-2">{EVENT_TYPES.map((type) => <button key={type} type="button" onClick={() => toggleEventType(type)} className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${form.event_types.includes(type) ? 'bg-[#c85a3c]/15 text-[#f0a07f] border-[#c85a3c]/60' : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'}`}>{type}</button>)}</div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <TextArea label="Previous hosting experience" value={form.experience} onChange={(value) => update('experience', value)} placeholder="Tell us about communities, events or experiences you have organised." />
+                    <TextArea label="Proposed event" value={form.proposed_event} onChange={(value) => update('proposed_event', value)} placeholder="What is the first event you would like to run on The Social Scene?" />
+                    <TextArea label="Why do you want to become a host?" value={form.why_host} onChange={(value) => update('why_host', value)} placeholder="What makes your event or community valuable to our audience?" required />
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Field label="Instagram" value={form.instagram} onChange={(value) => update('instagram', value)} icon={<Instagram className="w-4 h-4" />} />
+                    <Field label="Website / community link" value={form.website} onChange={(value) => update('website', value)} icon={<Globe2 className="w-4 h-4" />} />
+                  </div>
+
+                  <div className="hidden" aria-hidden="true"><input tabIndex={-1} autoComplete="off" value={form.website_check} onChange={(event) => update('website_check', event.target.value)} /></div>
+
+                  {error && <div className="rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-xs text-red-300">{error}</div>}
+                  <button disabled={submitting} className="w-full py-3.5 rounded-xl gradient-terracotta text-xs font-extrabold text-white shadow-lg disabled:opacity-60 flex items-center justify-center gap-2">{submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting application...</> : <>Submit host application <ArrowRight className="w-4 h-4" /></>}</button>
+                  <p className="text-[10px] text-gray-500 leading-relaxed">By submitting, you agree that The Social Scene may contact you about your host application. Approval is reviewed manually and does not guarantee event publication.</p>
+                </form>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, type = 'text', placeholder, required = false, icon }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; required?: boolean; icon?: React.ReactNode }) {
+  return <label className="space-y-1.5 block"><span className="text-xs font-bold text-gray-300">{label}{required && ' *'}</span><div className="relative">{icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{icon}</span>}<input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} className={`w-full ${icon ? 'pl-10' : 'px-3.5'} py-3 rounded-xl bg-gray-950/70 border border-gray-800 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#c85a3c]`} /></div></label>;
+}
+
+function TextArea({ label, value, onChange, placeholder, required = false }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean }) {
+  return <label className="space-y-1.5 block"><span className="text-xs font-bold text-gray-300">{label}{required && ' *'}</span><textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} rows={4} className="w-full px-3.5 py-3 rounded-xl bg-gray-950/70 border border-gray-800 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#c85a3c] resize-y" /></label>;
+}
