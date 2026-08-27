@@ -91,7 +91,7 @@ export default async function CategoriesPage() {
                     <p className="text-xs uppercase tracking-widest font-bold text-[#c85a3c]">Category</p>
                     <h2 className="text-2xl sm:text-3xl font-black text-white mt-1">{category.name}</h2>
                   </div>
-                  {categoryEvents.length > 3 && (
+                  {categoryEvents.length > 0 && (
                     <Link
                       href={`/categories/${category.slug}`}
                       className="shrink-0 inline-flex items-center gap-2 text-sm font-bold text-[#c85a3c] hover:text-white transition-colors"
