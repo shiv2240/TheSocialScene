@@ -16,6 +16,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username_unique
 CREATE OR REPLACE FUNCTION public.generate_social_username(p_full_name TEXT, p_profile_id UUID)
 RETURNS TEXT
 LANGUAGE plpgsql
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_base TEXT;
@@ -44,6 +45,7 @@ WHERE onboarding_completed = FALSE
 CREATE OR REPLACE FUNCTION public.protect_completed_profile_identity()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF OLD.onboarding_completed THEN
