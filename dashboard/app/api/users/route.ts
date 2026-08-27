@@ -154,3 +154,83 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to create dashboard user.' }, { status: 500 });
   }
 }
+
+const updateUserSchema = z.object({
+  id: z.string().uuid(),
+  full_name: z.string().trim().min(2).max(100).optional(),
+  phone: z.string().trim().min(8).max(20).optional().nullable(),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'CHECKIN_STAFF', 'EDITOR', 'FINANCE', 'SUPPORT']).optional(),
+  status: z.enum(['ACTIVE', 'SUSPENDED', 'PENDING']).optional(),
+});
+
+export async function PATCH(request: NextRequest) {
+  const auth = await requireSuperAdmin();
+  if ('error' in auth) return auth.error;
+
+  try {
+    const parsed = updateUserSchema.safeParse(await request.json());
+    if (!parsed.success) return NextResponse.json({ error: 'Invalid user update parameters.' }, { status: 400 });
+
+    const admin = getSupabaseAdmin();
+    const { data: targetProfile, error: profileLookupError } = await admin
+      .from('profiles')
+      .select('id, auth_user_id, email, full_name, phone, status')
+      .eq('id', parsed.data.id)
+      .maybeSingle();
+
+    if (profileLookupError || !targetProfile) {
+      return NextResponse.json({ error: 'User profile not found.' }, { status: 404 });
+    }
+
+    if (targetProfile.auth_user_id === auth.user.id && parsed.data.role && parsed.data.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'You cannot remove the Super Admin role from your own account.' }, { status: 400 });
+    }
+
+    const updates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (parsed.data.full_name) updates.full_name = parsed.data.full_name;
+    if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone || null;
+    if (parsed.data.status) updates.status = parsed.data.status;
+
+    const { error: updateError } = await admin
+      .from('profiles')
+      .update(updates)
+      .eq('id', targetProfile.id);
+
+    if (updateError) throw updateError;
+
+    if (parsed.data.role) {
+      const { data: roleRow, error: roleLookupError } = await admin
+        .from('roles')
+        .select('id')
+        .eq('name', parsed.data.role)
+        .single();
+
+      if (roleLookupError || !roleRow) throw new Error(`Role ${parsed.data.role} is not configured.`);
+
+      await admin.from('user_roles').delete().eq('user_id', targetProfile.id);
+      const { error: roleInsertError } = await admin
+        .from('user_roles')
+        .insert({ user_id: targetProfile.id, role_id: roleRow.id });
+
+      if (roleInsertError) throw roleInsertError;
+    }
+
+    const { data: actorProfile } = await admin.from('profiles').select('id').eq('auth_user_id', auth.user.id).maybeSingle();
+    if (actorProfile) {
+      await admin.from('audit_logs').insert({
+        actor_user_id: actorProfile.id,
+        action: 'DASHBOARD_USER_UPDATED',
+        entity_type: 'PROFILE',
+        entity_id: targetProfile.id,
+        metadata: { new_role: parsed.data.role, new_status: parsed.data.status, email: targetProfile.email },
+      });
+    }
+
+    return NextResponse.json({ message: 'User updated successfully.' });
+  } catch (error) {
+    console.error('[DASHBOARD USERS][PATCH]', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to update user.' }, { status: 500 });
+  }
+}
