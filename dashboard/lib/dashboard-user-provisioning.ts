@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
 export const MANAGEABLE_DASHBOARD_ROLES = [
@@ -29,64 +28,32 @@ export async function provisionDashboardUser(input: {
     redirectTo: `${dashboardUrl}/auth/callback?next=/change-password`,
   });
 
-  if (inviteError) {
-    throw new Error(inviteError.message || 'Unable to create the dashboard invitation.');
-  }
-
+  if (inviteError) throw new Error(inviteError.message || 'Unable to create the dashboard invitation.');
   if (!invited.user) throw new Error('Dashboard invitation did not return a user.');
 
-  const { data: profile, error: profileError } = await admin
-    .from('profiles')
-    .select('id,auth_user_id,full_name,email')
-    .eq('auth_user_id', invited.user.id)
-    .single();
-
+  const { data: profile, error: profileError } = await admin.from('profiles').select('id,auth_user_id,full_name,email').eq('auth_user_id', invited.user.id).single();
   if (profileError || !profile) {
-    await admin.auth.admin.deleteUser(invited.user.id, true);
+    await admin.auth.admin.deleteUser(invited.user.id);
     throw new Error('Dashboard account was created but its profile could not be provisioned.');
   }
 
-  const { error: profileUpdateError } = await admin
-    .from('profiles')
-    .update({
-      full_name: input.fullName.trim(),
-      phone: input.phone?.trim() || null,
-      status: 'ACTIVE',
-      must_change_password: true,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', profile.id);
-
+  const { error: profileUpdateError } = await admin.from('profiles').update({ full_name: input.fullName.trim(), phone: input.phone?.trim() || null, status: 'ACTIVE', must_change_password: true, updated_at: new Date().toISOString() }).eq('id', profile.id);
   if (profileUpdateError) {
-    await admin.auth.admin.deleteUser(invited.user.id, true);
+    await admin.auth.admin.deleteUser(invited.user.id);
     throw new Error('Unable to finish dashboard profile provisioning.');
   }
 
-  const { data: roleRow, error: roleLookupError } = await admin
-    .from('roles')
-    .select('id')
-    .eq('name', input.role)
-    .single();
-
+  const { data: roleRow, error: roleLookupError } = await admin.from('roles').select('id').eq('name', input.role).single();
   if (roleLookupError || !roleRow) {
-    await admin.auth.admin.deleteUser(invited.user.id, true);
+    await admin.auth.admin.deleteUser(invited.user.id);
     throw new Error(`Dashboard role ${input.role} is not configured.`);
   }
 
-  const { error: roleInsertError } = await admin
-    .from('user_roles')
-    .insert({ user_id: profile.id, role_id: roleRow.id });
-
+  const { error: roleInsertError } = await admin.from('user_roles').insert({ user_id: profile.id, role_id: roleRow.id });
   if (roleInsertError) {
-    await admin.auth.admin.deleteUser(invited.user.id, true);
+    await admin.auth.admin.deleteUser(invited.user.id);
     throw new Error(roleInsertError.code === '23505' ? 'This user already has the selected dashboard role.' : 'Unable to assign the dashboard role.');
   }
 
-  return {
-    authUserId: invited.user.id,
-    profileId: profile.id,
-    role: input.role,
-    email,
-    invitationId: randomUUID(),
-  };
+  return { authUserId: invited.user.id, profileId: profile.id, role: input.role, email };
 }
