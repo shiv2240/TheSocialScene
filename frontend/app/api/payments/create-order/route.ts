@@ -40,9 +40,6 @@ export async function POST(request: NextRequest) {
     if (profileError) throw profileError;
     if (!profile) return NextResponse.json({ error: 'Your profile is not ready yet. Please sign in again.' }, { status: 400 });
 
-    // Phone verification stores Indian numbers in E.164 format (+91XXXXXXXXXX),
-    // while the checkout UI intentionally sends the user-friendly 10-digit form.
-    // Normalize both representations before comparing them.
     const verifiedPhone = profile.phone ? normalizeIndianPhone(profile.phone) : '';
     if (!verifiedPhone || !profile.phone_verified) {
       return NextResponse.json({ error: 'Please verify your mobile number with OTP before booking.' }, { status: 409 });
@@ -82,7 +79,19 @@ export async function POST(request: NextRequest) {
 
     const { keyId, auth } = getRazorpayAuth();
     const receipt = `tss_${registrationId.slice(0, 12)}`;
-    const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', { method: 'POST', headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: Math.round(Number(event.price) * 100), currency: event.currency || 'INR', receipt, notes: { registration_id: registrationId, event_id: event.id, firebase_uid: user.uid }, capture: 'automatic' }), cache: 'no-store' });
+    const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      // Razorpay Orders API does not accept `capture` here. Capture is handled by
+      // the payment/checkout flow and webhook lifecycle after the order is created.
+      body: JSON.stringify({
+        amount: Math.round(Number(event.price) * 100),
+        currency: event.currency || 'INR',
+        receipt,
+        notes: { registration_id: registrationId, event_id: event.id, firebase_uid: user.uid },
+      }),
+      cache: 'no-store',
+    });
     const razorpayOrder = await razorpayResponse.json();
     if (!razorpayResponse.ok) return NextResponse.json({ error: razorpayOrder?.error?.description || 'Unable to create Razorpay order.' }, { status: 502 });
 
