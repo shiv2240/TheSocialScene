@@ -7,8 +7,15 @@ export const runtime = 'nodejs';
 
 const requestSchema = z.object({
   slug: z.string().trim().min(1),
-  phone: z.string().trim().regex(/^[6-9]\d{9}$/, 'A valid 10-digit Indian mobile number is required.'),
+  phone: z.string().trim().regex(/^(?:\+91)?[6-9]\d{9}$/, 'A valid 10-digit Indian mobile number is required.'),
 });
+
+function normalizeIndianPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+  return '';
+}
 
 function getRazorpayAuth() {
   const keyId = process.env.RAZORPAY_KEY_ID;
@@ -24,19 +31,23 @@ export async function POST(request: NextRequest) {
 
     const parsed = requestSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: 'A valid 10-digit mobile number is required to complete the booking.' }, { status: 400 });
-    const { slug, phone } = parsed.data;
+    const { slug } = parsed.data;
+    const bookingPhone = normalizeIndianPhone(parsed.data.phone);
+    if (!bookingPhone) return NextResponse.json({ error: 'A valid 10-digit Indian mobile number is required.' }, { status: 400 });
 
     const supabase = getSupabaseAdmin();
     const { data: profile, error: profileError } = await supabase.from('profiles').select('id, full_name, email, phone, phone_verified').eq('firebase_uid', user.uid).maybeSingle();
     if (profileError) throw profileError;
     if (!profile) return NextResponse.json({ error: 'Your profile is not ready yet. Please sign in again.' }, { status: 400 });
 
-    // A phone number is not considered a booking contact until it has been
-    // verified through the dedicated 2Factor account-linking flow.
-    if (!profile.phone || !profile.phone_verified) {
+    // Phone verification stores Indian numbers in E.164 format (+91XXXXXXXXXX),
+    // while the checkout UI intentionally sends the user-friendly 10-digit form.
+    // Normalize both representations before comparing them.
+    const verifiedPhone = profile.phone ? normalizeIndianPhone(profile.phone) : '';
+    if (!verifiedPhone || !profile.phone_verified) {
       return NextResponse.json({ error: 'Please verify your mobile number with OTP before booking.' }, { status: 409 });
     }
-    if (profile.phone !== phone) {
+    if (verifiedPhone !== bookingPhone) {
       return NextResponse.json({ error: 'The verified contact number on your account does not match.' }, { status: 409 });
     }
 
@@ -66,7 +77,7 @@ export async function POST(request: NextRequest) {
     if (existing.error) throw existing.error;
     if (existing.data?.razorpay_order_id) {
       const { keyId } = getRazorpayAuth();
-      return NextResponse.json({ keyId, orderId: existing.data.razorpay_order_id, amount: Math.round(Number(existing.data.amount) * 100), currency: existing.data.currency, registrationId, eventTitle: event.title, prefill: { name: profile.full_name, email: profile.email || undefined, contact: phone } });
+      return NextResponse.json({ keyId, orderId: existing.data.razorpay_order_id, amount: Math.round(Number(existing.data.amount) * 100), currency: existing.data.currency, registrationId, eventTitle: event.title, prefill: { name: profile.full_name, email: profile.email || undefined, contact: bookingPhone } });
     }
 
     const { keyId, auth } = getRazorpayAuth();
@@ -78,7 +89,7 @@ export async function POST(request: NextRequest) {
     const { error: orderError } = await supabase.from('orders').insert({ registration_id: registrationId, user_id: profile.id, amount: event.price, currency: event.currency || 'INR', status: 'PENDING', razorpay_order_id: razorpayOrder.id, receipt });
     if (orderError) throw orderError;
 
-    return NextResponse.json({ keyId, orderId: razorpayOrder.id, amount: razorpayOrder.amount, currency: razorpayOrder.currency, registrationId, eventTitle: event.title, prefill: { name: profile.full_name, email: profile.email || undefined, contact: phone } });
+    return NextResponse.json({ keyId, orderId: razorpayOrder.id, amount: razorpayOrder.amount, currency: razorpayOrder.currency, registrationId, eventTitle: event.title, prefill: { name: profile.full_name, email: profile.email || undefined, contact: bookingPhone } });
   } catch (error) {
     console.error('Razorpay create-order error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to start payment.' }, { status: 500 });
