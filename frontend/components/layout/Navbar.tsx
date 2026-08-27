@@ -36,7 +36,6 @@ export function Navbar() {
 
   useEffect(() => {
     void loadSession();
-
     const onProfileUpdated = () => void loadSession();
     window.addEventListener('tss:profile-updated', onProfileUpdated);
     window.addEventListener('focus', onProfileUpdated);
@@ -74,7 +73,7 @@ export function Navbar() {
 
           <nav className="hidden md:flex items-center gap-8">
             <Link href="/events" className="text-sm font-bold text-gray-200 hover:text-[#c85a3c] transition-colors flex items-center gap-2"><Compass className="w-4 h-4 text-[#c85a3c]" />Discover Events & Treks</Link>
-            <Link href="/categories/music-concerts" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">Categories</Link>
+            <Link href="/categories" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">Categories</Link>
             <Link href="/hosts/social-club" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">Top Hosts</Link>
           </nav>
 
@@ -90,7 +89,7 @@ export function Navbar() {
           </div>
         </div>
 
-        {mobileMenuOpen && <div className="md:hidden py-4 border-t border-white/10 space-y-3"><Link href="/events" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Discover Events & Treks</Link><Link href="/tickets" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Tickets</Link>{signedIn && <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Profile</Link>}{signedIn && <button onClick={signOut} className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Sign Out</button>}</div>}
+        {mobileMenuOpen && <div className="md:hidden py-4 border-t border-white/10 space-y-3"><Link href="/events" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Discover Events & Treks</Link><Link href="/categories" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Categories</Link><Link href="/tickets" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Tickets</Link>{signedIn && <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Profile</Link>}{signedIn && <button onClick={signOut} className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Sign Out</button>}</div>}
       </div>
     </header>
   );
