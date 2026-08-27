@@ -19,7 +19,7 @@ function escapeHtml(value: string) {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
-async function sendInvitationEmail(input: { email: string; fullName: string; role: string; actionLink: string }) {
+export async function sendInvitationEmail(input: { email: string; fullName: string; role: string; actionLink: string; subject?: string }) {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) throw new Error('RESEND_API_KEY is not configured for dashboard invitations.');
 
@@ -27,110 +27,73 @@ async function sendInvitationEmail(input: { email: string; fullName: string; rol
   const safeRole = escapeHtml(input.role.replace(/_/g, ' '));
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from: resendFrom,
       to: [input.email],
-      subject: 'Your Social Scene dashboard invitation',
+      subject: input.subject || 'Your Social Scene dashboard invitation',
       text: `Hi ${input.fullName},\n\nYou have been invited to The Social Scene dashboard as ${input.role.replace(/_/g, ' ')}.\n\nUse this secure link to activate your account and set your password:\n${input.actionLink}\n\nThis invitation link is intended only for you.\n\nThe Social Scene Team`,
-      html: `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0;background:#090b12;font-family:Arial,Helvetica,sans-serif;color:#f5f5f5;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding-top:40px;padding-bottom:40px;"><table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#151823;border-radius:12px;"><tr><td style="padding-top:40px;padding-right:40px;padding-bottom:40px;padding-left:40px;"><p style="font-size:16px;line-height:24px;color:#f5f5f5;">Hi ${safeName},</p><p style="font-size:16px;line-height:24px;color:#d8dbe5;">You have been invited to The Social Scene dashboard as <strong style="color:#f5f5f5;">${safeRole}</strong>.</p><p style="font-size:16px;line-height:24px;color:#d8dbe5;">Use the secure button below to activate your account and set your password.</p><table cellpadding="0" cellspacing="0" border="0"><tr><td style="border-radius:8px;background:#ff6b35;"><a href="${escapeHtml(input.actionLink)}" style="display:inline-block;padding-top:14px;padding-right:24px;padding-bottom:14px;padding-left:24px;font-size:16px;line-height:20px;color:#ffffff;text-decoration:none;font-weight:bold;">Activate Dashboard Account</a></td></tr></table><p style="font-size:13px;line-height:20px;color:#9da3b3;">If you did not expect this invitation, you can ignore this email.</p><p style="font-size:14px;line-height:22px;color:#d8dbe5;">The Social Scene Team</p></td></tr></table></td></tr></table></body></html>`,
+      html: `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0;background:#090b12;font-family:Arial,Helvetica,sans-serif;color:#f5f5f5;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 0"><table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#151823;border-radius:12px"><tr><td style="padding:40px"><p style="font-size:16px;line-height:24px;color:#f5f5f5">Hi ${safeName},</p><p style="font-size:16px;line-height:24px;color:#d8dbe5">You have been invited to The Social Scene dashboard as <strong style="color:#f5f5f5">${safeRole}</strong>.</p><p style="font-size:16px;line-height:24px;color:#d8dbe5">Use the secure button below to activate your account and set your password.</p><table cellpadding="0" cellspacing="0" border="0"><tr><td style="border-radius:8px;background:#ff6b35"><a href="${escapeHtml(input.actionLink)}" style="display:inline-block;padding:14px 24px;font-size:16px;line-height:20px;color:#fff;text-decoration:none;font-weight:bold">Activate Dashboard Account</a></td></tr></table><p style="font-size:13px;line-height:20px;color:#9da3b3">If you did not expect this invitation, you can ignore this email.</p><p style="font-size:14px;line-height:22px;color:#d8dbe5">The Social Scene Team</p></td></tr></table></td></tr></table></body></html>`,
     }),
   });
 
   if (!response.ok) {
     const body = await response.text();
-    console.error('[DASHBOARD INVITATION][RESEND]', {
-      status: response.status,
-      from: resendFrom,
-      recipient: input.email,
-      response: body,
-    });
-
+    console.error('[DASHBOARD INVITATION][RESEND]', { status: response.status, from: resendFrom, recipient: input.email, response: body });
     let providerMessage = body;
-    try {
-      const parsed = JSON.parse(body) as { message?: string; name?: string };
-      providerMessage = parsed.message || parsed.name || body;
-    } catch {
-      // Keep the raw provider response when it is not JSON.
-    }
-
+    try { const parsed = JSON.parse(body) as { message?: string; name?: string }; providerMessage = parsed.message || parsed.name || body; } catch { /* keep raw */ }
     throw new Error(`Resend rejected the invitation email (${response.status}): ${providerMessage}`);
   }
 }
 
-export async function provisionDashboardUser(input: {
-  fullName: string;
-  email: string;
-  phone?: string | null;
-  role: ManageableDashboardRole;
-}) {
+export async function provisionDashboardUser(input: { fullName: string; email: string; phone?: string | null; role: ManageableDashboardRole }) {
   const admin = getSupabaseAdmin();
   const email = input.email.trim().toLowerCase();
   const redirectTo = `${dashboardUrl}/auth/callback?next=/change-password`;
-
-  const { data: generated, error: generateError } = await admin.auth.admin.generateLink({
-    type: 'invite',
-    email,
-    options: {
-      redirectTo,
-      data: { full_name: input.fullName.trim(), dashboard_role: input.role },
-    },
-  });
-
+  const { data: generated, error: generateError } = await admin.auth.admin.generateLink({ type: 'invite', email, options: { redirectTo, data: { full_name: input.fullName.trim(), dashboard_role: input.role } } });
   if (generateError) throw new Error(generateError.message || 'Unable to create the dashboard invitation.');
   if (!generated.user || !generated.properties?.action_link) throw new Error('Dashboard invitation did not return a secure activation link.');
-
   const authUserId = generated.user.id;
 
   try {
-    const { data: profile, error: profileError } = await admin
-      .from('profiles')
-      .select('id,auth_user_id,full_name,email')
-      .eq('auth_user_id', authUserId)
-      .single();
+    const { data: profile, error: profileError } = await admin.from('profiles').select('id,auth_user_id,full_name,email').eq('auth_user_id', authUserId).single();
     if (profileError || !profile) throw new Error('Dashboard account was created but its profile could not be provisioned.');
-
-    const { error: profileUpdateError } = await admin
-      .from('profiles')
-      .update({
-        full_name: input.fullName.trim(),
-        phone: input.phone?.trim() || null,
-        status: 'ACTIVE',
-        must_change_password: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', profile.id);
+    const { error: profileUpdateError } = await admin.from('profiles').update({ full_name: input.fullName.trim(), phone: input.phone?.trim() || null, status: 'ACTIVE', must_change_password: true, updated_at: new Date().toISOString() }).eq('id', profile.id);
     if (profileUpdateError) throw new Error('Unable to finish dashboard profile provisioning.');
-
-    const { data: roleRow, error: roleLookupError } = await admin
-      .from('roles')
-      .select('id')
-      .eq('name', input.role)
-      .single();
+    const { data: roleRow, error: roleLookupError } = await admin.from('roles').select('id').eq('name', input.role).single();
     if (roleLookupError || !roleRow) throw new Error(`Dashboard role ${input.role} is not configured.`);
-
-    const { error: roleInsertError } = await admin
-      .from('user_roles')
-      .insert({ user_id: profile.id, role_id: roleRow.id });
-    if (roleInsertError) {
-      throw new Error(roleInsertError.code === '23505' ? 'This user already has the selected dashboard role.' : 'Unable to assign the dashboard role.');
-    }
-
-    await sendInvitationEmail({
-      email,
-      fullName: input.fullName.trim(),
-      role: input.role,
-      actionLink: generated.properties.action_link,
-    });
-
+    const { error: roleInsertError } = await admin.from('user_roles').insert({ user_id: profile.id, role_id: roleRow.id });
+    if (roleInsertError) throw new Error(roleInsertError.code === '23505' ? 'This user already has the selected dashboard role.' : 'Unable to assign the dashboard role.');
+    await sendInvitationEmail({ email, fullName: input.fullName.trim(), role: input.role, actionLink: generated.properties.action_link });
     return { authUserId, profileId: profile.id, role: input.role, email };
   } catch (error) {
-    await admin.auth.admin.deleteUser(authUserId).catch((cleanupError: unknown) => {
-      console.error('[DASHBOARD INVITATION][CLEANUP]', cleanupError);
-    });
+    await admin.auth.admin.deleteUser(authUserId).catch((cleanupError: unknown) => console.error('[DASHBOARD INVITATION][CLEANUP]', cleanupError));
     throw error;
   }
+}
+
+export async function resendDashboardInvitation(profileId: string) {
+  const admin = getSupabaseAdmin();
+  const { data: profile, error: profileError } = await admin.from('profiles').select('id,auth_user_id,full_name,email,must_change_password,status').eq('id', profileId).single();
+  if (profileError || !profile) throw new Error('User profile not found.');
+  if (!profile.auth_user_id || !profile.email) throw new Error('This user does not have a dashboard invitation email.');
+  if (profile.status === 'SUSPENDED') throw new Error('Cannot resend an invitation to a suspended user.');
+  if (!profile.must_change_password) throw new Error('This account is already activated.');
+
+  const { data: authResult, error: authError } = await admin.auth.admin.getUserById(profile.auth_user_id);
+  if (authError || !authResult.user) throw new Error('Dashboard authentication account not found.');
+
+  const { data: roleMapping } = await admin.from('user_roles').select('role_id').eq('user_id', profile.id).limit(1).maybeSingle();
+  let role = 'DASHBOARD USER';
+  if (roleMapping?.role_id) {
+    const { data: roleRow } = await admin.from('roles').select('name').eq('id', roleMapping.role_id).maybeSingle();
+    if (roleRow?.name) role = roleRow.name;
+  }
+
+  const redirectTo = `${dashboardUrl}/auth/callback?next=/change-password`;
+  const { data: generated, error: generateError } = await admin.auth.admin.generateLink({ type: 'recovery', email: authResult.user.email || profile.email, options: { redirectTo } });
+  if (generateError || !generated.properties?.action_link) throw new Error(generateError?.message || 'Unable to generate a new activation link.');
+
+  await sendInvitationEmail({ email: profile.email, fullName: profile.full_name || 'The Social Scene user', role, actionLink: generated.properties.action_link, subject: 'Your Social Scene dashboard activation link' });
+  return { email: profile.email };
 }
