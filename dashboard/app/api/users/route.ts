@@ -23,17 +23,30 @@ async function requireSuperAdmin() {
   return { supabase, user };
 }
 
+type ProfileRow = {
+  id: string;
+  auth_user_id: string | null;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  status: string | null;
+  must_change_password: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+type RoleMappingRow = { user_id: string; role_id: string };
+type RoleRow = { id: string; name: string; description: string | null };
+
 export async function GET() {
   const auth = await requireSuperAdmin();
   if ('error' in auth) return auth.error;
 
   try {
-    const admin = getSupabaseAdmin();
-
-    // Keep this lookup flat instead of relying on nested PostgREST embeds.
-    // The nested user_roles -> roles relationship was the source of the
-    // production 500 on /api/users when relationship metadata was ambiguous.
-    const { data: profiles, error: profilesError } = await admin
+    // Use the authenticated client for reads. RBAC read policies grant a
+    // SUPER_ADMIN access to dashboard profiles, role mappings and definitions.
+    // This keeps GET /api/users functional without requiring the service-role
+    // secret in the deployment environment.
+    const { data: profiles, error: profilesError } = await auth.supabase
       .from('profiles')
       .select('id,auth_user_id,full_name,email,phone,status,must_change_password,created_at,updated_at')
       .not('auth_user_id', 'is', null)
@@ -41,33 +54,33 @@ export async function GET() {
 
     if (profilesError) throw profilesError;
 
-    const profileRows = profiles ?? [];
-    const profileIds = profileRows.map((profile: typeof profileRows[number]) => profile.id);
+    const profileRows = (profiles ?? []) as ProfileRow[];
+    const profileIds = profileRows.map((profile: ProfileRow) => profile.id);
 
-    let roleMappings: Array<{ user_id: string; role_id: string }> = [];
-    let roles: Array<{ id: string; name: string; description: string | null }> = [];
+    let roleMappings: RoleMappingRow[] = [];
+    let roles: RoleRow[] = [];
 
     if (profileIds.length > 0) {
-      const { data: mappings, error: mappingsError } = await admin
+      const { data: mappings, error: mappingsError } = await auth.supabase
         .from('user_roles')
         .select('user_id,role_id')
         .in('user_id', profileIds);
       if (mappingsError) throw mappingsError;
 
-      roleMappings = mappings ?? [];
-      const roleIds = [...new Set(roleMappings.map(mapping => mapping.role_id))];
+      roleMappings = (mappings ?? []) as RoleMappingRow[];
+      const roleIds = [...new Set(roleMappings.map((mapping) => mapping.role_id))];
 
       if (roleIds.length > 0) {
-        const { data: roleRows, error: rolesError } = await admin
+        const { data: roleRows, error: rolesError } = await auth.supabase
           .from('roles')
           .select('id,name,description')
           .in('id', roleIds);
         if (rolesError) throw rolesError;
-        roles = roleRows ?? [];
+        roles = (roleRows ?? []) as RoleRow[];
       }
     }
 
-    const roleById = new Map(roles.map(role => [role.id, role]));
+    const roleById = new Map(roles.map((role) => [role.id, role]));
     const roleByUserId = new Map<string, { name: string; description: string | null }>();
 
     for (const mapping of roleMappings) {
@@ -77,7 +90,7 @@ export async function GET() {
       }
     }
 
-    const users = profileRows.map((profile: typeof profileRows[number]) => {
+    const users = profileRows.map((profile: ProfileRow) => {
       const role = roleByUserId.get(profile.id);
       return {
         id: profile.id,
