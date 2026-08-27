@@ -71,9 +71,6 @@ export async function provisionDashboardUser(input: {
   const email = input.email.trim().toLowerCase();
   const redirectTo = `${dashboardUrl}/auth/callback?next=/change-password`;
 
-  // Generate the Supabase invitation link without asking Supabase's email
-  // provider to send the message. Delivery is handled by the production
-  // Resend account configured for The Social Scene.
   const { data: generated, error: generateError } = await admin.auth.admin.generateLink({
     type: 'invite',
     email,
@@ -131,9 +128,7 @@ export async function provisionDashboardUser(input: {
 
     return { authUserId, profileId: profile.id, role: input.role, email };
   } catch (error) {
-    // Do not leave an unusable dashboard account behind if provisioning or
-    // invitation delivery fails. The Super Admin can retry safely.
-    await admin.auth.admin.deleteUser(authUserId).catch((cleanupError) => {
+    await admin.auth.admin.deleteUser(authUserId).catch((cleanupError: unknown) => {
       console.error('[DASHBOARD INVITATION][CLEANUP]', cleanupError);
     });
     throw error;
