@@ -4,16 +4,11 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 
-const EVENT_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'EVENT_MANAGER', 'EDITOR']);
+const EVENT_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'EDITOR']);
+const PUBLISH_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'EVENT_MANAGER', 'EDITOR']);
 const MUTABLE_STATUSES = new Set(['DRAFT', 'PUBLISHED']);
 
-type EventRow = {
-  id: string; title: string | null; slug: string | null; short_description: string | null; description: string | null;
-  category_id: string | null; host_id: string | null; venue_id: string | null; start_at: string | null; end_at: string | null;
-  capacity: number | null; registered_count: number | null; registration_deadline: string | null; price: number | null;
-  currency: string | null; cover_image: string | null; status: string | null; featured: boolean | null;
-  registration_open: boolean | null; published_at: string | null; created_at: string | null; updated_at: string | null;
-};
+type EventRow = { id: string; title: string | null; slug: string | null; short_description: string | null; description: string | null; category_id: string | null; host_id: string | null; venue_id: string | null; start_at: string | null; end_at: string | null; capacity: number | null; registered_count: number | null; registration_deadline: string | null; price: number | null; currency: string | null; cover_image: string | null; status: string | null; featured: boolean | null; registration_open: boolean | null; published_at: string | null; created_at: string | null; updated_at: string | null };
 type CategoryRow = { id: string; name: string | null };
 type VenueRow = { id: string; name: string | null; address: string | null; city: string | null };
 
@@ -26,24 +21,12 @@ async function requireEventManager() {
   try { admin = getSupabaseAdmin(); } catch (error) { console.warn('[ADMIN EVENTS][ADMIN CLIENT FALLBACK]', error); }
 
   const { data: roleName, error: roleError } = await supabase.rpc('get_my_dashboard_role');
-  if (roleError) {
-    console.error('[ADMIN EVENTS][DASHBOARD ROLE RPC]', roleError);
-    return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
-  }
-
+  if (roleError) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
   const role = typeof roleName === 'string' ? roleName : null;
-  if (!role || !EVENT_ROLES.has(role)) {
-    return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
-  }
+  if (!role || !EVENT_ROLES.has(role)) return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
 
-  const { data: profile, error: profileError } = await admin
-    .from('profiles').select('id,full_name').eq('auth_user_id', user.id).maybeSingle();
-  if (profileError) {
-    console.error('[ADMIN EVENTS][PROFILE]', profileError);
-    return { error: NextResponse.json({ error: 'Unable to load staff profile.' }, { status: 500 }) };
-  }
-  if (!profile) return { error: NextResponse.json({ error: 'Staff profile not found.' }, { status: 400 }) };
-
+  const { data: profile, error: profileError } = await admin.from('profiles').select('id,full_name').eq('auth_user_id', user.id).maybeSingle();
+  if (profileError || !profile) return { error: NextResponse.json({ error: 'Staff profile not found.' }, { status: 400 }) };
   return { supabase, admin, user, profile, role };
 }
 
@@ -51,15 +34,17 @@ export async function GET() {
   const auth = await requireEventManager();
   if ('error' in auth) return auth.error;
   try {
-    const { data: rows, error: eventsError } = await auth.admin
+    let query = auth.admin
       .from('events')
       .select('id,title,slug,short_description,description,category_id,host_id,venue_id,start_at,end_at,capacity,registered_count,registration_deadline,price,currency,cover_image,status,featured,registration_open,published_at,created_at,updated_at')
       .order('start_at', { ascending: false }).limit(250);
-    if (eventsError) throw eventsError;
+    if (auth.role === 'HOST') query = query.eq('host_id', auth.profile.id);
 
+    const { data: rows, error: eventsError } = await query;
+    if (eventsError) throw eventsError;
     const events = (rows ?? []) as EventRow[];
-    const categoryIds = [...new Set(events.map((event: EventRow) => event.category_id).filter((id): id is string => Boolean(id)))];
-    const venueIds = [...new Set(events.map((event: EventRow) => event.venue_id).filter((id): id is string => Boolean(id)))];
+    const categoryIds = [...new Set(events.map((event) => event.category_id).filter((id): id is string => Boolean(id)))];
+    const venueIds = [...new Set(events.map((event) => event.venue_id).filter((id): id is string => Boolean(id)))];
     const [{ data: categories, error: categoriesError }, { data: venues, error: venuesError }] = await Promise.all([
       categoryIds.length ? auth.admin.from('event_categories').select('id,name').in('id', categoryIds) : Promise.resolve({ data: [] as CategoryRow[], error: null }),
       venueIds.length ? auth.admin.from('venues').select('id,name,address,city').in('id', venueIds) : Promise.resolve({ data: [] as VenueRow[], error: null }),
@@ -67,13 +52,9 @@ export async function GET() {
     if (categoriesError) throw categoriesError;
     if (venuesError) throw venuesError;
 
-    const categoryMap = new Map(((categories ?? []) as CategoryRow[]).map((category: CategoryRow) => [category.id, category]));
-    const venueMap = new Map(((venues ?? []) as VenueRow[]).map((venue: VenueRow) => [venue.id, venue]));
-    const enrichedEvents = events.map((event: EventRow) => ({
-      ...event,
-      category: event.category_id ? categoryMap.get(event.category_id) || null : null,
-      venue: event.venue_id ? venueMap.get(event.venue_id) || null : null,
-    }));
+    const categoryMap = new Map(((categories ?? []) as CategoryRow[]).map((category) => [category.id, category]));
+    const venueMap = new Map(((venues ?? []) as VenueRow[]).map((venue) => [venue.id, venue]));
+    const enrichedEvents = events.map((event) => ({ ...event, category: event.category_id ? categoryMap.get(event.category_id) || null : null, venue: event.venue_id ? venueMap.get(event.venue_id) || null : null }));
     return NextResponse.json({ events: enrichedEvents });
   } catch (error) {
     console.error('[ADMIN EVENTS][GET]', error);
@@ -85,12 +66,13 @@ export async function PATCH(request: NextRequest) {
   const auth = await requireEventManager();
   if ('error' in auth) return auth.error;
   try {
+    if (!PUBLISH_ROLES.has(auth.role)) return NextResponse.json({ error: 'Hosts can manage their events but cannot publish or unpublish them.' }, { status: 403 });
     const body = await request.json();
     const eventId = typeof body?.eventId === 'string' ? body.eventId : '';
     const status = typeof body?.status === 'string' ? body.status.toUpperCase() : '';
     if (!eventId || !MUTABLE_STATUSES.has(status)) return NextResponse.json({ error: 'A valid eventId and status (DRAFT or PUBLISHED) are required.' }, { status: 400 });
 
-    const { data: existing, error: existingError } = await auth.admin.from('events').select('id,title,status').eq('id', eventId).maybeSingle();
+    const { data: existing, error: existingError } = await auth.admin.from('events').select('id,title,status,host_id').eq('id', eventId).maybeSingle();
     if (existingError) throw existingError;
     if (!existing) return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
 
@@ -98,8 +80,7 @@ export async function PATCH(request: NextRequest) {
     const { data: event, error: updateError } = await auth.admin.from('events').update(update).eq('id', eventId).select('id,title,status,published_at,updated_at').single();
     if (updateError) throw updateError;
 
-    const { error: auditError } = await auth.admin.from('audit_logs').insert({ actor_user_id: auth.profile.id, action: status === 'PUBLISHED' ? 'EVENT_PUBLISHED' : 'EVENT_UNPUBLISHED', entity_type: 'EVENT', entity_id: eventId, metadata: { previous_status: existing.status, new_status: status, role: auth.role } });
-    if (auditError) console.error('[ADMIN EVENTS][AUDIT]', auditError);
+    await auth.admin.from('audit_logs').insert({ actor_user_id: auth.profile.id, action: status === 'PUBLISHED' ? 'EVENT_PUBLISHED' : 'EVENT_UNPUBLISHED', entity_type: 'EVENT', entity_id: eventId, metadata: { previous_status: existing.status, new_status: status, role: auth.role } });
     return NextResponse.json({ event });
   } catch (error) {
     console.error('[ADMIN EVENTS][PATCH]', error);
