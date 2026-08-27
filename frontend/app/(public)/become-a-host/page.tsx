@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Globe2, Users, CalendarDays, ShieldCheck, Loader2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, AtSign, Globe2, Users, CalendarDays, ShieldCheck, Loader2 } from 'lucide-react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 
@@ -19,41 +19,26 @@ function InstagramIcon({ className = "w-4 h-4" }: { className?: string }) {
 const EVENT_TYPES = ['Social & Nightlife', 'Music & Concerts', 'Fitness & Wellness', 'Outdoor Treks', 'Tech & Networking', 'Art & Workshops', 'Food & Culinary', 'Other'];
 
 export default function BecomeAHostPage() {
-  const [form, setForm] = useState({
-    full_name: '', email: '', phone: '', organization_name: '', city: '', event_types: [] as string[],
-    experience: '', proposed_event: '', expected_frequency: '', instagram: '', website: '', why_host: '', website_check: '',
-  });
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', organization_name: '', city: '', event_types: [] as string[], experience: '', proposed_event: '', expected_frequency: '', instagram: '', website: '', why_host: '', website_check: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const toggleEventType = (type: string) => setForm((current) => ({
-    ...current,
-    event_types: current.event_types.includes(type) ? current.event_types.filter((item) => item !== type) : [...current.event_types, type],
-  }));
+  const toggleEventType = (type: string) => setForm((current) => ({ ...current, event_types: current.event_types.includes(type) ? current.event_types.filter((item) => item !== type) : [...current.event_types, type] }));
 
   const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError('');
+    event.preventDefault(); setError('');
     if (!form.event_types.length) return setError('Select at least one event type.');
     if (form.why_host.trim().length < 20) return setError('Tell us a little more about why you want to host.');
-
     setSubmitting(true);
     try {
-      const response = await fetch('/api/host-applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      const response = await fetch('/api/host-applications', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || 'Unable to submit application.');
       setSubmitted(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to submit application.');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to submit application.'); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -136,10 +121,5 @@ export default function BecomeAHostPage() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder, required = false, icon }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; required?: boolean; icon?: React.ReactNode }) {
-  return <label className="space-y-1.5 block"><span className="text-xs font-bold text-gray-300">{label}{required && ' *'}</span><div className="relative">{icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{icon}</span>}<input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} className={`w-full ${icon ? 'pl-10' : 'px-3.5'} py-3 rounded-xl bg-gray-950/70 border border-gray-800 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#c85a3c]`} /></div></label>;
-}
-
-function TextArea({ label, value, onChange, placeholder, required = false }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean }) {
-  return <label className="space-y-1.5 block"><span className="text-xs font-bold text-gray-300">{label}{required && ' *'}</span><textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} rows={4} className="w-full px-3.5 py-3 rounded-xl bg-gray-950/70 border border-gray-800 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#c85a3c] resize-y" /></label>;
-}
+function Field({ label, value, onChange, type = 'text', placeholder, required = false, icon }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; required?: boolean; icon?: React.ReactNode }) { return <label className="space-y-1.5 block"><span className="text-xs font-bold text-gray-300">{label}{required && ' *'}</span><div className="relative">{icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{icon}</span>}<input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} className={`w-full ${icon ? 'pl-10' : 'px-3.5'} py-3 rounded-xl bg-gray-950/70 border border-gray-800 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#c85a3c]`} /></div></label>; }
+function TextArea({ label, value, onChange, placeholder, required = false }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean }) { return <label className="space-y-1.5 block"><span className="text-xs font-bold text-gray-300">{label}{required && ' *'}</span><textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} rows={4} className="w-full px-3.5 py-3 rounded-xl bg-gray-950/70 border border-gray-800 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#c85a3c] resize-y" /></label>; }

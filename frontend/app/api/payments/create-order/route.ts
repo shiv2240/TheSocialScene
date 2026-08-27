@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 
+const CHECKOUT_TIMEOUT_SECONDS = 10 * 60;
 const requestSchema = z.object({
   slug: z.string().trim().min(1),
   phone: z.string().trim().regex(/^(?:\+91)?[6-9]\d{9}$/, 'A valid 10-digit Indian mobile number is required.'),
@@ -41,12 +42,8 @@ export async function POST(request: NextRequest) {
     if (!profile) return NextResponse.json({ error: 'Your profile is not ready yet. Please sign in again.' }, { status: 400 });
 
     const verifiedPhone = profile.phone ? normalizeIndianPhone(profile.phone) : '';
-    if (!verifiedPhone || !profile.phone_verified) {
-      return NextResponse.json({ error: 'Please verify your mobile number with OTP before booking.' }, { status: 409 });
-    }
-    if (verifiedPhone !== bookingPhone) {
-      return NextResponse.json({ error: 'The verified contact number on your account does not match.' }, { status: 409 });
-    }
+    if (!verifiedPhone || !profile.phone_verified) return NextResponse.json({ error: 'Please verify your mobile number with OTP before booking.' }, { status: 409 });
+    if (verifiedPhone !== bookingPhone) return NextResponse.json({ error: 'The verified contact number on your account does not match.' }, { status: 409 });
 
     const { data: event, error: eventError } = await supabase.from('events').select('id,title,price,currency,capacity,registered_count,status,registration_open').eq('slug', slug).eq('status', 'PUBLISHED').maybeSingle();
     if (eventError) throw eventError;
@@ -70,11 +67,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ free: true, registrationId, ticketCode: confirmation.ticket_code });
     }
 
-    const existing = await supabase.from('orders').select('id, registration_id, razorpay_order_id, amount, currency, status').eq('registration_id', registrationId).eq('status', 'PENDING').maybeSingle();
+    const existing = await supabase.from('orders').select('id,registration_id,razorpay_order_id,amount,currency,status,expires_at').eq('registration_id', registrationId).eq('status', 'PENDING').maybeSingle();
     if (existing.error) throw existing.error;
     if (existing.data?.razorpay_order_id) {
-      const { keyId } = getRazorpayAuth();
-      return NextResponse.json({ keyId, orderId: existing.data.razorpay_order_id, amount: Math.round(Number(existing.data.amount) * 100), currency: existing.data.currency, registrationId, eventTitle: event.title, prefill: { name: profile.full_name, email: profile.email || undefined, contact: bookingPhone } });
+      const existingExpiry = existing.data.expires_at ? new Date(existing.data.expires_at) : null;
+      if (!existingExpiry || existingExpiry > new Date()) {
+        const { keyId } = getRazorpayAuth();
+        return NextResponse.json({ keyId, orderId: existing.data.razorpay_order_id, amount: Math.round(Number(existing.data.amount) * 100), currency: existing.data.currency, registrationId, eventTitle: event.title, expiresAt: existing.data.expires_at, timeoutSeconds: CHECKOUT_TIMEOUT_SECONDS, prefill: { name: profile.full_name, email: profile.email || undefined, contact: bookingPhone } });
+      }
+      await supabase.from('orders').update({ status: 'FAILED', updated_at: new Date().toISOString() }).eq('id', existing.data.id).eq('status', 'PENDING');
     }
 
     const { keyId, auth } = getRazorpayAuth();
@@ -82,23 +83,17 @@ export async function POST(request: NextRequest) {
     const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
-      // Razorpay Orders API does not accept `capture` here. Capture is handled by
-      // the payment/checkout flow and webhook lifecycle after the order is created.
-      body: JSON.stringify({
-        amount: Math.round(Number(event.price) * 100),
-        currency: event.currency || 'INR',
-        receipt,
-        notes: { registration_id: registrationId, event_id: event.id, firebase_uid: user.uid },
-      }),
+      body: JSON.stringify({ amount: Math.round(Number(event.price) * 100), currency: event.currency || 'INR', receipt, notes: { registration_id: registrationId, event_id: event.id, firebase_uid: user.uid } }),
       cache: 'no-store',
     });
     const razorpayOrder = await razorpayResponse.json();
     if (!razorpayResponse.ok) return NextResponse.json({ error: razorpayOrder?.error?.description || 'Unable to create Razorpay order.' }, { status: 502 });
 
-    const { error: orderError } = await supabase.from('orders').insert({ registration_id: registrationId, user_id: profile.id, amount: event.price, currency: event.currency || 'INR', status: 'PENDING', razorpay_order_id: razorpayOrder.id, receipt });
+    const localExpiry = new Date(Date.now() + CHECKOUT_TIMEOUT_SECONDS * 1000).toISOString();
+    const { error: orderError } = await supabase.from('orders').insert({ registration_id: registrationId, user_id: profile.id, amount: event.price, currency: event.currency || 'INR', status: 'PENDING', razorpay_order_id: razorpayOrder.id, receipt, expires_at: localExpiry });
     if (orderError) throw orderError;
 
-    return NextResponse.json({ keyId, orderId: razorpayOrder.id, amount: razorpayOrder.amount, currency: razorpayOrder.currency, registrationId, eventTitle: event.title, prefill: { name: profile.full_name, email: profile.email || undefined, contact: bookingPhone } });
+    return NextResponse.json({ keyId, orderId: razorpayOrder.id, amount: razorpayOrder.amount, currency: razorpayOrder.currency, registrationId, eventTitle: event.title, expiresAt: localExpiry, timeoutSeconds: CHECKOUT_TIMEOUT_SECONDS, prefill: { name: profile.full_name, email: profile.email || undefined, contact: bookingPhone } });
   } catch (error) {
     console.error('Razorpay create-order error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to start payment.' }, { status: 500 });
