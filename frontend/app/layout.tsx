@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
   return (
-    <html lang="en" className="h-full dark">
+    <html lang="en" className="h-full dark" suppressHydrationWarning>
       <head>
         {gaId && (
           <>
@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </>
         )}
       </head>
-      <body className="min-h-full flex flex-col bg-[#141217] text-gray-100 antialiased">
+      <body className="min-h-full flex flex-col bg-[#141217] text-gray-100 antialiased" suppressHydrationWarning>
         {children}
         {gaId && <GoogleAnalytics />}
       </body>

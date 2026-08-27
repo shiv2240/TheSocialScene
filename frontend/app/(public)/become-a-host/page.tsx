@@ -2,9 +2,19 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Instagram, Globe2, Users, CalendarDays, ShieldCheck, Loader2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Globe2, Users, CalendarDays, ShieldCheck, Loader2 } from 'lucide-react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
+
+function InstagramIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
 
 const EVENT_TYPES = ['Social & Nightlife', 'Music & Concerts', 'Fitness & Wellness', 'Outdoor Treks', 'Tech & Networking', 'Art & Workshops', 'Food & Culinary', 'Other'];
 
@@ -106,7 +116,7 @@ export default function BecomeAHostPage() {
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4">
-                    <Field label="Instagram" value={form.instagram} onChange={(value) => update('instagram', value)} icon={<Instagram className="w-4 h-4" />} />
+                    <Field label="Instagram" value={form.instagram} onChange={(value) => update('instagram', value)} icon={<InstagramIcon className="w-4 h-4" />} />
                     <Field label="Website / community link" value={form.website} onChange={(value) => update('website', value)} icon={<Globe2 className="w-4 h-4" />} />
                   </div>
 

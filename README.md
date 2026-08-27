@@ -63,15 +63,20 @@ cd dashboard && npm run dev -- -p 3001
 
 ## 🗄️ Database Migrations (Supabase PostgreSQL)
 
-Apply the migrations in `backend/supabase/migrations/` in sequence (00001 to 00009):
+Apply the migrations in `backend/supabase/migrations/` in sequence (00001 to 00015):
 
-1. `00001_initial_schema.sql` — Initial schema.
-2. `00002_functions_triggers.sql` — Capacity lock function.
+1. `00001_initial_schema.sql` — Initial schema definitions.
+2. `00002_functions_triggers.sql` — Capacity lock and trigger functions.
 3. `00003_auth_profile_and_rls.sql` — Profiles & RLS policies.
-4. `00004_public_event_access.sql` — Public experience visibility.
-5. `00007_auth_hardening_and_dashboard_rbac.sql` — Dashboard access control.
-6. `00008_firebase_phone_auth.sql` — Firebase phone auth bridge.
-7. `00009_razorpay_and_checkin.sql` — Razorpay payment orders & check-in functions.
+4. `00004_public_event_access.sql` — Public experience visibility rules.
+5. `00007_auth_hardening_and_dashboard_rbac.sql` — Dashboard access control & RBAC roles.
+6. `00008_firebase_phone_auth.sql` — Firebase phone auth integration bridge.
+7. `00009_razorpay_and_checkin.sql` — Razorpay payment orders & check-in verification functions.
+8. `00010_payment_webhook_idempotency.sql` — Webhook idempotency tracking table.
+9. `00011_security_harden_rpc_execution.sql` — RPC security function hardening.
+10. `00012_revoke_public_rpc_execute.sql` — Revoke public execute access on administrative RPC functions.
+11. `00014_host_applications_and_dashboard_access.sql` — Host application submission & approval workflow.
+12. `00015_unify_dashboard_auth_with_existing_profiles.sql` — Unified dashboard authentication with existing profile structure.
 
 ---
 

@@ -12,9 +12,17 @@ out/
 build/
 dist/
 
-# Environment Variables & Secrets
+# Environment Variables & Secrets (NEVER commit real secrets)
 .env
 .env*.local
+.env.local
+.env.production
+.env.development
+*.env
+*.env.local
+!.env.example
+!dashboard/.env.example
+!frontend/.env.example
 
 # Logs
 *.log
