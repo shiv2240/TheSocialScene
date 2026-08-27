@@ -42,7 +42,7 @@ export async function GET() {
     if (profilesError) throw profilesError;
 
     const profileRows = profiles ?? [];
-    const profileIds = profileRows.map(profile => profile.id);
+    const profileIds = profileRows.map((profile: typeof profileRows[number]) => profile.id);
 
     let roleMappings: Array<{ user_id: string; role_id: string }> = [];
     let roles: Array<{ id: string; name: string; description: string | null }> = [];
@@ -77,7 +77,7 @@ export async function GET() {
       }
     }
 
-    const users = profileRows.map(profile => {
+    const users = profileRows.map((profile: typeof profileRows[number]) => {
       const role = roleByUserId.get(profile.id);
       return {
         id: profile.id,
