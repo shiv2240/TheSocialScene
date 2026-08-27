@@ -30,7 +30,6 @@ async function requireEventManager() {
 
   const typedRoleRows = (roleRows ?? []) as RoleRow[];
   const roles: string[] = [];
-
   for (const row of typedRoleRows) {
     const value = row.roles;
     const name = Array.isArray(value) ? value[0]?.name : value?.name;
@@ -38,7 +37,6 @@ async function requireEventManager() {
   }
 
   const role = roles.find((value) => EVENT_ROLES.has(value));
-
   if (!role) return { error: NextResponse.json({ error: 'You do not have event management permission.' }, { status: 403 }) };
 
   return { supabase, admin, user, profile, role };
@@ -49,23 +47,52 @@ export async function GET() {
   if ('error' in auth) return auth.error;
 
   try {
-    const { data, error } = await auth.admin
+    // Keep the base event query independent from PostgREST relationship embedding.
+    // The events table has several profile FKs and relationship/schema-cache changes
+    // can make embedded selects fail even when the base table is healthy.
+    const { data: rows, error: eventsError } = await auth.admin
       .from('events')
       .select(`
         id,title,slug,short_description,description,category_id,host_id,venue_id,
         start_at,end_at,capacity,registered_count,registration_deadline,price,currency,
-        cover_image,status,featured,registration_open,published_at,created_at,updated_at,
-        category:event_categories(name),
-        venue:venues(name,address,city)
+        cover_image,status,featured,registration_open,published_at,created_at,updated_at
       `)
       .order('start_at', { ascending: false })
       .limit(250);
 
-    if (error) throw error;
-    return NextResponse.json({ events: data || [] });
+    if (eventsError) throw eventsError;
+
+    const events = rows || [];
+    const categoryIds = [...new Set(events.map((event) => event.category_id).filter(Boolean))];
+    const venueIds = [...new Set(events.map((event) => event.venue_id).filter(Boolean))];
+
+    const [{ data: categories, error: categoriesError }, { data: venues, error: venuesError }] = await Promise.all([
+      categoryIds.length
+        ? auth.admin.from('event_categories').select('id,name').in('id', categoryIds)
+        : Promise.resolve({ data: [], error: null }),
+      venueIds.length
+        ? auth.admin.from('venues').select('id,name,address,city').in('id', venueIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (categoriesError) throw categoriesError;
+    if (venuesError) throw venuesError;
+
+    const categoryMap = new Map((categories || []).map((category) => [category.id, category]));
+    const venueMap = new Map((venues || []).map((venue) => [venue.id, venue]));
+
+    const enrichedEvents = events.map((event) => ({
+      ...event,
+      category: event.category_id ? categoryMap.get(event.category_id) || null : null,
+      venue: event.venue_id ? venueMap.get(event.venue_id) || null : null,
+    }));
+
+    return NextResponse.json({ events: enrichedEvents });
   } catch (error) {
     console.error('[ADMIN EVENTS][GET]', error);
-    return NextResponse.json({ error: 'Unable to load events.' }, { status: 500 });
+    return NextResponse.json({
+      error: error instanceof Error ? `Unable to load events: ${error.message}` : 'Unable to load events.'
+    }, { status: 500 });
   }
 }
 
