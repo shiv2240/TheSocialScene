@@ -19,15 +19,14 @@ async function requireHostApplicationManager() {
   const { data: role, error } = await supabase.rpc('get_my_dashboard_role');
   if (error) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
   if (!['SUPER_ADMIN', 'ADMIN'].includes(role)) return { error: NextResponse.json({ error: 'You do not have host application management permission.' }, { status: 403 }) };
-  return { user, role };
+  return { supabase, user, role };
 }
 
 export async function GET() {
   const auth = await requireHostApplicationManager();
   if ('error' in auth) return auth.error;
   try {
-    const admin = getSupabaseAdmin();
-    const { data: applications, error } = await admin
+    const { data: applications, error } = await auth.supabase
       .from('host_applications')
       .select('id,full_name,email,phone,organization_name,city,event_types,experience,proposed_event,expected_frequency,social_links,why_host,status,profile_id,reviewed_by,reviewed_at,rejection_reason,credentials_sent_at,created_at,updated_at')
       .order('created_at', { ascending: false });
