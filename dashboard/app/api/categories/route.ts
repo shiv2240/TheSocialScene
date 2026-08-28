@@ -6,6 +6,22 @@ import { getCurrentDashboardRoles, hasDashboardRole } from '@/lib/dashboard-rbac
 
 export const runtime = 'nodejs';
 const MANAGE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'EDITOR'] as const;
+
+type CategoryRow = {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  description: string | null;
+  display_order: number;
+  is_active: boolean;
+};
+
+type EventCategoryRow = {
+  id: string;
+  category_id: string | null;
+};
+
 const categorySchema = z.object({
   name: z.string().trim().min(2).max(100),
   slug: z.string().trim().min(2).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
@@ -30,14 +46,34 @@ export async function GET() {
     const supabase = await createClient();
     const { data: sessionData } = await supabase.auth.getUser();
     if (!sessionData.user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+
     const admin = getSupabaseAdmin();
-    const { data: categories, error } = await admin.from('event_categories').select('id,name,slug,icon,description,display_order,is_active').eq('is_active', true).order('display_order', { ascending: true }).order('name', { ascending: true });
+    const { data: categories, error } = await admin
+      .from('event_categories')
+      .select('id,name,slug,icon,description,display_order,is_active')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+      .order('name', { ascending: true });
     if (error) throw error;
-    const { data: events, error: eventError } = await admin.from('events').select('id,category_id').eq('status', 'PUBLISHED');
+
+    const { data: events, error: eventError } = await admin
+      .from('events')
+      .select('id,category_id')
+      .eq('status', 'PUBLISHED');
     if (eventError) throw eventError;
+
     const counts = new Map<string, number>();
-    for (const event of events ?? []) if (event.category_id) counts.set(event.category_id, (counts.get(event.category_id) ?? 0) + 1);
-    return NextResponse.json({ categories: (categories ?? []).map(category => ({ ...category, active_events: counts.get(category.id) ?? 0 })) });
+    for (const event of (events ?? []) as EventCategoryRow[]) {
+      if (event.category_id) counts.set(event.category_id, (counts.get(event.category_id) ?? 0) + 1);
+    }
+
+    const rows = (categories ?? []) as CategoryRow[];
+    return NextResponse.json({
+      categories: rows.map((category: CategoryRow) => ({
+        ...category,
+        active_events: counts.get(category.id) ?? 0,
+      })),
+    });
   } catch (error) {
     console.error('[DASHBOARD CATEGORIES][GET]', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load categories.' }, { status: 500 });
