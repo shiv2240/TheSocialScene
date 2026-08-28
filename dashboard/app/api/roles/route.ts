@@ -5,6 +5,19 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 
+type RoleRecord = {
+  id: string;
+  name: string;
+  description: string | null;
+  is_system: boolean;
+  created_at: string;
+};
+
+type UserRoleMapping = {
+  role_id: string;
+  user_id: string;
+};
+
 async function requireSuperAdmin() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -19,14 +32,31 @@ export async function GET() {
   if ('error' in auth) return auth.error;
   try {
     const admin = getSupabaseAdmin();
-    const { data: roles, error } = await admin.from('roles').select('id,name,description,is_system,created_at').order('name');
+    const { data: roleData, error } = await admin
+      .from('roles')
+      .select('id,name,description,is_system,created_at')
+      .order('name');
     if (error) throw error;
-    const roleIds = (roles ?? []).map((role) => role.id);
-    const { data: mappings, error: mappingError } = roleIds.length ? await admin.from('user_roles').select('role_id,user_id').in('role_id', roleIds) : { data: [], error: null };
+
+    const roles = (roleData ?? []) as RoleRecord[];
+    const roleIds = roles.map((role: RoleRecord) => role.id);
+    const { data: mappingData, error: mappingError } = roleIds.length
+      ? await admin.from('user_roles').select('role_id,user_id').in('role_id', roleIds)
+      : { data: [], error: null };
     if (mappingError) throw mappingError;
+
+    const mappings = (mappingData ?? []) as UserRoleMapping[];
     const counts = new Map<string, number>();
-    for (const mapping of mappings ?? []) counts.set(mapping.role_id, (counts.get(mapping.role_id) || 0) + 1);
-    return NextResponse.json({ roles: (roles ?? []).map((role) => ({ ...role, assigned_users: counts.get(role.id) || 0 })) });
+    for (const mapping of mappings) {
+      counts.set(mapping.role_id, (counts.get(mapping.role_id) || 0) + 1);
+    }
+
+    return NextResponse.json({
+      roles: roles.map((role: RoleRecord) => ({
+        ...role,
+        assigned_users: counts.get(role.id) || 0,
+      })),
+    });
   } catch (error) {
     console.error('[DASHBOARD ROLES][GET]', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load dashboard roles.' }, { status: 500 });
