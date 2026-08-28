@@ -14,17 +14,32 @@ export const DASHBOARD_ROLES = [
 
 export type DashboardRole = (typeof DASHBOARD_ROLES)[number];
 
+const ROLE_PRIORITY: DashboardRole[] = [
+  'SUPER_ADMIN', 'ADMIN', 'FINANCE', 'EVENT_MANAGER', 'HOST', 'CHECKIN_STAFF', 'EDITOR', 'SUPPORT',
+];
+
+function normalizeRoles(value: unknown): DashboardRole[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((role): role is DashboardRole => typeof role === 'string' && DASHBOARD_ROLES.includes(role as DashboardRole));
+}
+
+function getPrimaryRole(roles: DashboardRole[]) {
+  return ROLE_PRIORITY.find((role) => roles.includes(role)) || null;
+}
+
 export async function getDashboardAuth() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { user: null, role: null as DashboardRole | null, mustChangePassword: false };
+  if (!user) return { user: null, role: null as DashboardRole | null, roles: [] as DashboardRole[], mustChangePassword: false };
 
-  const { data: role, error } = await supabase.rpc('get_my_dashboard_role');
+  const { data: rolesData, error } = await supabase.rpc('get_my_dashboard_roles');
   if (error) {
-    console.error('Dashboard role lookup failed:', error);
-    return { user, role: null as DashboardRole | null, mustChangePassword: false };
+    console.error('Dashboard roles lookup failed:', error);
+    return { user, role: null as DashboardRole | null, roles: [] as DashboardRole[], mustChangePassword: false };
   }
 
+  const roles = normalizeRoles(rolesData);
+  const role = getPrimaryRole(roles);
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('must_change_password')
@@ -35,7 +50,8 @@ export async function getDashboardAuth() {
 
   return {
     user,
-    role: (DASHBOARD_ROLES.includes(role as DashboardRole) ? role : null) as DashboardRole | null,
+    role,
+    roles,
     mustChangePassword: profile?.must_change_password === true,
   };
 }
@@ -43,7 +59,7 @@ export async function getDashboardAuth() {
 export async function requireDashboardAuth(options?: { allowPasswordSetup?: boolean }) {
   const auth = await getDashboardAuth();
   if (!auth.user) redirect('/login');
-  if (!auth.role) redirect('/unauthorized');
+  if (!auth.roles.length || !auth.role) redirect('/unauthorized');
   if (auth.mustChangePassword && !options?.allowPasswordSetup) redirect('/change-password');
-  return auth as { user: NonNullable<typeof auth.user>; role: DashboardRole; mustChangePassword: boolean };
+  return auth as { user: NonNullable<typeof auth.user>; role: DashboardRole; roles: DashboardRole[]; mustChangePassword: boolean };
 }
