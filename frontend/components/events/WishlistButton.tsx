@@ -1,26 +1,32 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { Heart, Loader2 } from 'lucide-react';
 
 export function WishlistButton({ eventId }: { eventId: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let active = true;
     fetch(`/api/wishlist?event_id=${encodeURIComponent(eventId)}`, { cache: 'no-store' })
       .then(async response => {
         const body = await response.json().catch(() => ({}));
-        if (response.ok) setSaved(Boolean(body.wishlisted));
+        if (active && response.ok) setSaved(Boolean(body.wishlisted));
       })
       .catch(() => undefined)
-      .finally(() => setBusy(false));
+      .finally(() => { if (active) setBusy(false); });
+    return () => { active = false; };
   }, [eventId]);
 
   const toggle = async () => {
     if (busy) return;
-    setBusy(true); setError('');
+    setBusy(true);
+    setError('');
     try {
       const response = await fetch('/api/wishlist', {
         method: saved ? 'DELETE' : 'POST',
@@ -28,11 +34,17 @@ export function WishlistButton({ eventId }: { eventId: string }) {
         body: JSON.stringify({ event_id: eventId }),
       });
       const body = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        router.push(`/login?next=${encodeURIComponent(pathname)}`);
+        return;
+      }
       if (!response.ok) throw new Error(body.error || 'Unable to update wishlist.');
       setSaved(Boolean(body.wishlisted));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unable to update wishlist.');
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   return <div className="relative">
