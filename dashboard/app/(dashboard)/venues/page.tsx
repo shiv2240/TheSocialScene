@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Globe, Loader2, MapPin, PlusCircle, RefreshCw, Search } from 'lucide-react';
 
 type Venue = {
@@ -29,7 +29,7 @@ export default function VenuesPage() {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadVenues = async (showRefreshState = false) => {
+  const loadVenues = useCallback(async (showRefreshState = false) => {
     if (showRefreshState) setRefreshing(true);
     else setLoading(true);
     setError('');
@@ -45,11 +45,11 @@ export default function VenuesPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadVenues();
-  }, []);
+  }, [loadVenues]);
 
   const filteredVenues = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
