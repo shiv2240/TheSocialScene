@@ -22,15 +22,15 @@ const navigationItems = [
   { name: 'Settings', href: '/settings', icon: Settings, roles: ['SUPER_ADMIN', 'ADMIN'] },
 ] as const;
 
-export function DashboardSidebar({ role }: { role: DashboardRole }) {
+export function DashboardSidebar({ role, roles }: { role: DashboardRole; roles: DashboardRole[] }) {
   const pathname = usePathname();
-  const items = navigationItems.filter((item) => item.roles.some((allowedRole) => allowedRole === role));
+  const items = navigationItems.filter((item) => item.roles.some((allowedRole) => roles.includes(allowedRole as DashboardRole)));
 
   return (
     <aside className="w-64 bg-[#100f15] border-r border-white/10 flex flex-col h-screen sticky top-0">
-      <div className="p-6 border-b border-white/10 flex items-center gap-3"><div className="w-11 h-11 rounded-full overflow-hidden border-2 border-[#c85a3c]/60 flex-shrink-0 bg-[#f5eedf] shadow-md"><img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover" /></div><div><span className="text-base font-black text-white tracking-tight block leading-none">Social Scene <span className="gradient-text">Admin</span></span><span className="text-[10px] uppercase font-extrabold text-[#e59838] tracking-wider block mt-1">{role === 'HOST' ? 'Host Portal' : 'Operations'}</span></div></div>
+      <div className="p-6 border-b border-white/10 flex items-center gap-3"><div className="w-11 h-11 rounded-full overflow-hidden border-2 border-[#c85a3c]/60 flex-shrink-0 bg-[#f5eedf] shadow-md"><img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover" /></div><div><span className="text-base font-black text-white tracking-tight block leading-none">Social Scene <span className="gradient-text">Admin</span></span><span className="text-[10px] uppercase font-extrabold text-[#e59838] tracking-wider block mt-1">{role === 'HOST' && roles.length === 1 ? 'Host Portal' : 'Operations'}</span></div></div>
       <nav className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-800">{items.map((item) => { const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)); const Icon = item.icon; return <Link key={item.href} href={item.href} prefetch={false} className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${isActive ? 'gradient-terracotta text-white shadow-lg shadow-[#c85a3c]/25' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-400'}`} /><span>{item.name}</span></Link>; })}</nav>
-      <div className="p-4 border-t border-white/10"><div className="dashboard-card p-3.5 rounded-2xl border border-white/10 flex items-center gap-3"><div className="w-9 h-9 rounded-full bg-[#c85a3c]/20 border border-[#c85a3c]/40 flex items-center justify-center text-[#c85a3c] font-black text-xs">{role === 'HOST' ? 'H' : role.slice(0, 2)}</div><div className="truncate"><span className="text-xs font-black text-white block truncate">{role.replaceAll('_', ' ')}</span><span className="text-[10px] text-emerald-400 font-semibold block flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> RBAC Active</span></div></div></div>
+      <div className="p-4 border-t border-white/10"><div className="dashboard-card p-3.5 rounded-2xl border border-white/10 flex items-center gap-3"><div className="w-9 h-9 rounded-full bg-[#c85a3c]/20 border border-[#c85a3c]/40 flex items-center justify-center text-[#c85a3c] font-black text-xs">{role === 'HOST' && roles.length === 1 ? 'H' : role.slice(0, 2)}</div><div className="truncate"><span className="text-xs font-black text-white block truncate">{roles.length > 1 ? `${roles.length} roles assigned` : role.replaceAll('_', ' ')}</span><span className="text-[10px] text-emerald-400 font-semibold block flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> RBAC Active</span></div></div></div>
     </aside>
   );
 }
