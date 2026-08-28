@@ -82,6 +82,65 @@ Apply the migrations in `backend/supabase/migrations/` in sequence (00001 to 000
 
 ---
 
+## 📊 Database ER Diagram
+
+Below is the high-level Entity-Relationship diagram representing the 27 database tables across profiles, RBAC, events, registrations, orders, tickets, check-ins, and auditing. For the detailed field-level diagram, see [`docs/database-er-diagram.md`](file:///d:/Freelance/Project-12%20%28TheSocialScene/docs/database-er-diagram.md).
+
+```mermaid
+erDiagram
+    profiles ||--o{ user_roles : "has"
+    roles ||--o{ user_roles : "assigned_to"
+    roles ||--o{ role_permissions : "has"
+    permissions ||--o{ role_permissions : "assigned_to"
+
+    profiles ||--o{ host_applications : "applicant"
+    profiles ||--o{ host_applications : "reviewer"
+
+    event_categories ||--o{ events : "categorizes"
+    venues ||--o{ events : "hosts_at"
+    profiles ||--o{ events : "primary_host"
+    profiles ||--o{ event_hosts : "co_host"
+    events ||--o{ event_hosts : "co_hosts"
+    events ||--o{ event_images : "gallery"
+    events ||--o{ event_schedules : "schedule"
+
+    events ||--o{ registrations : "registers_for"
+    profiles ||--o{ registrations : "registers"
+    registrations ||--o{ registration_items : "items"
+
+    registrations ||--|| orders : "generates"
+    profiles ||--o{ orders : "places"
+    orders ||--o{ payments : "paid_via"
+    payments ||--o{ refunds : "refunded_via"
+
+    registrations ||--o{ tickets : "issues"
+    events ||--o{ tickets : "valid_for"
+    profiles ||--o{ tickets : "owns"
+
+    tickets ||--o| checkins : "scanned"
+    events ||--o{ checkins : "venue_checkin"
+    profiles ||--o{ checkins : "attendee"
+    profiles ||--o{ checkins : "scanner"
+
+    tickets ||--o{ attendance_events : "logs"
+    events ||--o{ attendance_events : "logs"
+
+    events ||--o{ waitlists : "queue"
+    profiles ||--o{ waitlists : "waits"
+
+    coupons ||--o{ coupon_redemptions : "redeemed"
+    profiles ||--o{ coupon_redemptions : "redeemed_by"
+    registrations ||--o{ coupon_redemptions : "applied_to"
+
+    events ||--o{ reviews : "reviewed"
+    profiles ||--o{ reviews : "author"
+
+    profiles ||--o{ notifications : "notified"
+    profiles ||--o{ audit_logs : "actor"
+```
+
+---
+
 ## ✨ Features Implemented
 
 - **GoFlow Public Discovery:** Live ticker marquee, retro emblem hero, interactive vibe pills, attendee avatar stacks.
