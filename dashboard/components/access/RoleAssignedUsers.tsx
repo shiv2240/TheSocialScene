@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Edit3, Loader2, Mail, Search, UserMinus, UserPlus, X } from 'lucide-react';
+import { Edit3, Mail, Search, UserMinus, UserPlus, X } from 'lucide-react';
 
 type UserRow = {
   id: string;
