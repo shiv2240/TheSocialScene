@@ -4,7 +4,6 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCurrentDashboardRoles, hasDashboardRole, isOnlyHostRole } from '@/lib/dashboard-rbac';
 
 export const runtime = 'nodejs';
-
 const REGISTRATION_ROLES = ['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'SUPPORT'] as const;
 type AuthContext = { admin: ReturnType<typeof getSupabaseAdmin>; profileId: string; roles: string[] };
 
@@ -20,9 +19,7 @@ async function requireRegistrationAccess(): Promise<AuthContext | NextResponse> 
   if (error || !profile) return NextResponse.json({ error: 'Dashboard profile not found.' }, { status: 400 });
   return { admin, profileId: profile.id, roles };
 }
-
 function isResponse(value: AuthContext | NextResponse): value is NextResponse { return value instanceof NextResponse; }
-
 async function ensureEventAccess(auth: AuthContext, eventId: string) {
   const { data: event, error } = await auth.admin.from('events').select('id,title,slug,host_id,start_at,end_at,capacity,registered_count,price,currency,status,registration_open,cover_image').eq('id', eventId).maybeSingle();
   if (error) throw error;
@@ -39,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (eventId) {
       const eventResult = await ensureEventAccess(auth, eventId);
       if ('error' in eventResult) return eventResult.error;
-      const { data: registrations, error } = await auth.admin.from('registrations').select('id,registration_number,event_id,user_id,status,total_amount,currency,created_at,updated_at,events!inner(id,title,slug,host_id,start_at,end_at,capacity,registered_count,price,currency,status,registration_open,cover_image),profiles!inner(id,full_name,email,phone,avatar_url,bio,created_at)').eq('event_id', eventId).order('created_at', { ascending: false });
+      const { data: registrations, error } = await auth.admin.from('registrations').select('id,registration_number,event_id,user_id,status,total_amount,currency,created_at,updated_at,events!inner(id,title,slug,host_id,start_at,end_at,capacity,registered_count,price,currency,status,registration_open,cover_image),profiles!inner(id,full_name,email,phone,avatar_url,bio,created_at),tickets(ticket_code,status)').eq('event_id', eventId).order('created_at', { ascending: false });
       if (error) throw error;
       return NextResponse.json({ event: eventResult.event, registrations: registrations ?? [] });
     }
@@ -69,7 +66,6 @@ export async function POST(request: NextRequest) {
     if ('error' in eventResult) return eventResult.error;
     const event = eventResult.event;
     if (Number(event.registered_count ?? 0) >= Number(event.capacity ?? 0)) return NextResponse.json({ error: 'This event is at capacity.' }, { status: 409 });
-
     const admin = auth.admin;
     let { data: profile, error: profileLookupError } = await admin.from('profiles').select('id,full_name,email,phone,avatar_url,bio,created_at').ilike('email', email).maybeSingle();
     if (profileLookupError) throw profileLookupError;
@@ -84,7 +80,6 @@ export async function POST(request: NextRequest) {
     const { data: existing, error: duplicateError } = await admin.from('registrations').select('id,status').eq('event_id', eventId).eq('user_id', profile.id).in('status', ['PENDING', 'CONFIRMED']).maybeSingle();
     if (duplicateError) throw duplicateError;
     if (existing) return NextResponse.json({ error: 'This user already has an active registration for this event.' }, { status: 409 });
-
     const registrationNumber = `REG-2026-${randomCode()}`;
     const { data: registration, error: registrationError } = await admin.from('registrations').insert({ registration_number: registrationNumber, event_id: eventId, user_id: profile.id, status: 'CONFIRMED', total_amount: amount, currency: event.currency || 'INR' }).select('id,registration_number,event_id,user_id,status,total_amount,currency,created_at,updated_at').single();
     if (registrationError || !registration) throw registrationError || new Error('Unable to create registration.');
