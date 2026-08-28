@@ -12,6 +12,7 @@ const categorySchema = z.object({
   icon: z.string().trim().max(60).nullable().optional(),
   description: z.string().trim().max(500).nullable().optional(),
   display_order: z.number().int().min(0).max(10000).optional(),
+  is_active: z.boolean().optional(),
 });
 
 async function requireManager() {
@@ -29,30 +30,14 @@ export async function GET() {
     const supabase = await createClient();
     const { data: sessionData } = await supabase.auth.getUser();
     if (!sessionData.user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-
     const admin = getSupabaseAdmin();
-    const { data: categories, error } = await admin
-      .from('event_categories')
-      .select('id,name,slug,icon,description,display_order,is_active')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })
-      .order('name', { ascending: true });
+    const { data: categories, error } = await admin.from('event_categories').select('id,name,slug,icon,description,display_order,is_active').eq('is_active', true).order('display_order', { ascending: true }).order('name', { ascending: true });
     if (error) throw error;
-
-    const { data: events, error: eventError } = await admin
-      .from('events')
-      .select('id,category_id')
-      .eq('status', 'PUBLISHED');
+    const { data: events, error: eventError } = await admin.from('events').select('id,category_id').eq('status', 'PUBLISHED');
     if (eventError) throw eventError;
-
     const counts = new Map<string, number>();
-    for (const event of events ?? []) {
-      if (event.category_id) counts.set(event.category_id, (counts.get(event.category_id) ?? 0) + 1);
-    }
-
-    return NextResponse.json({
-      categories: (categories ?? []).map(category => ({ ...category, active_events: counts.get(category.id) ?? 0 })),
-    });
+    for (const event of events ?? []) if (event.category_id) counts.set(event.category_id, (counts.get(event.category_id) ?? 0) + 1);
+    return NextResponse.json({ categories: (categories ?? []).map(category => ({ ...category, active_events: counts.get(category.id) ?? 0 })) });
   } catch (error) {
     console.error('[DASHBOARD CATEGORIES][GET]', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load categories.' }, { status: 500 });
@@ -67,14 +52,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: 'Enter a valid category name and slug.' }, { status: 400 });
     const data = parsed.data;
     const admin = getSupabaseAdmin();
-    const { data: category, error } = await admin.from('event_categories').insert({
-      name: data.name,
-      slug: data.slug,
-      icon: data.icon || null,
-      description: data.description || null,
-      display_order: data.display_order ?? 100,
-      is_active: true,
-    }).select('id,name,slug,icon,description,display_order,is_active').single();
+    const { data: category, error } = await admin.from('event_categories').insert({ name: data.name, slug: data.slug, icon: data.icon || null, description: data.description || null, display_order: data.display_order ?? 100, is_active: true }).select('id,name,slug,icon,description,display_order,is_active').single();
     if (error) {
       if (error.code === '23505') return NextResponse.json({ error: 'A category with that slug already exists.' }, { status: 409 });
       throw error;
@@ -91,12 +69,14 @@ export async function PATCH(request: NextRequest) {
   if ('error' in auth) return auth.error;
   try {
     const body = await request.json().catch(() => null) as ({ id?: string } & Record<string, unknown>) | null;
-    if (!body?.id) return NextResponse.json({ error: 'Category id is required.' }, { status: 400 });
-    const parsed = categorySchema.partial().safeParse(body);
+    const id = body?.id;
+    if (!id || typeof id !== 'string') return NextResponse.json({ error: 'Category id is required.' }, { status: 400 });
+    const { id: _ignored, ...candidate } = body;
+    const parsed = categorySchema.partial().safeParse(candidate);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid category details.' }, { status: 400 });
-    const { id, ...updates } = parsed.data as { id?: string } & Record<string, unknown>;
+    if (Object.keys(parsed.data).length === 0) return NextResponse.json({ error: 'No category changes supplied.' }, { status: 400 });
     const admin = getSupabaseAdmin();
-    const { data: category, error } = await admin.from('event_categories').update(updates).eq('id', id).select('id,name,slug,icon,description,display_order,is_active').single();
+    const { data: category, error } = await admin.from('event_categories').update(parsed.data).eq('id', id).select('id,name,slug,icon,description,display_order,is_active').single();
     if (error) {
       if (error.code === '23505') return NextResponse.json({ error: 'A category with that slug already exists.' }, { status: 409 });
       throw error;
