@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCurrentDashboardRoles, hasDashboardRole, isOnlyHostRole } from '@/lib/dashboard-rbac';
+import type { DashboardRole } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 const REGISTRATION_ROLES = ['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'SUPPORT'] as const;
-type AuthContext = { admin: ReturnType<typeof getSupabaseAdmin>; profileId: string; roles: string[] };
+type AuthContext = { admin: ReturnType<typeof getSupabaseAdmin>; profileId: string; roles: DashboardRole[] };
 
 async function requireRegistrationAccess(): Promise<AuthContext | NextResponse> {
   const supabase = await createClient();
