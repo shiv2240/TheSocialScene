@@ -46,23 +46,20 @@ export function AccessActionMenu({ userId, userName, status, currentRoles, isSel
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-        setRolePicker(false);
-      }
+      // The role picker is rendered through a portal, so its events do not
+      // belong to the action-menu ref. Let the modal manage its own closing.
+      if (rolePicker) return;
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
-  }, []);
+  }, [rolePicker]);
 
   useEffect(() => {
     if (!rolePicker) return;
     const previousOverflow = document.body.style.overflow;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !savingRoles) {
-        setOpen(false);
-        setRolePicker(false);
-      }
+      if (event.key === 'Escape' && !savingRoles) closeRolePicker();
     };
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', onKeyDown);
@@ -142,8 +139,8 @@ export function AccessActionMenu({ userId, userName, status, currentRoles, isSel
   const StatusIcon = status === 'SUSPENDED' ? ShieldCheck : ShieldOff;
 
   const rolePickerModal = open && rolePicker && portalReady ? createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRolePicker(); }}>
-      <div className="relative flex w-full max-w-lg max-h-[calc(100vh-2rem)] flex-col rounded-2xl border border-white/10 bg-[#151720] shadow-2xl shadow-black/60" role="dialog" aria-modal="true" aria-labelledby="change-roles-title">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRolePicker(); }}>
+      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#151720] shadow-2xl shadow-black/60" role="dialog" aria-modal="true" aria-labelledby="change-roles-title">
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
           <div><p id="change-roles-title" className="text-lg font-extrabold text-white">Change dashboard roles</p><p className="mt-1 text-xs text-gray-500">Assign one or more roles. Permissions are combined across all selected roles.</p></div>
           <button type="button" disabled={savingRoles} onClick={closeRolePicker} className="shrink-0 rounded-lg p-1 text-gray-500 hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40" aria-label="Close role picker"><X className="h-5 w-5" /></button>
