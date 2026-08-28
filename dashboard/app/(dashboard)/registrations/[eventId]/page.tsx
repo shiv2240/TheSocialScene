@@ -1,0 +1,123 @@
+'use client';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, CheckCircle2, Edit3, Loader2, Mail, MoreVertical, PlusCircle, Search, Ticket, Trash2, User, UserRound, X } from 'lucide-react';
+import { formatCurrency, formatDate } from '@/lib/utils';
+
+type EventRow = { id: string; title: string; slug: string; start_at: string; end_at: string; capacity: number; registered_count: number; price: number; currency: string; status: string; registration_open: boolean; cover_image?: string | null };
+type Profile = { id: string; full_name: string | null; email: string | null; phone: string | null; avatar_url?: string | null; bio?: string | null; created_at?: string | null };
+type Registration = { id: string; registration_number: string; event_id: string; user_id: string; status: 'CONFIRMED' | 'PENDING' | 'CANCELLED'; total_amount: number; currency: string; created_at: string; updated_at: string; profiles: Profile; tickets?: { ticket_code: string; status: string }[] };
+
+const statusClass: Record<string, string> = {
+  CONFIRMED: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40',
+  PENDING: 'bg-amber-950/80 text-amber-300 border-amber-500/40',
+  CANCELLED: 'bg-red-950/50 text-red-300 border-red-500/30',
+};
+
+export default function EventRegistrationsPage({ params }: { params: Promise<{ eventId: string }> }) {
+  const [eventId, setEventId] = useState('');
+  const [event, setEvent] = useState<EventRow | null>(null);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [query, setQuery] = useState('');
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [editing, setEditing] = useState<Registration | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', total_amount: '0' });
+
+  const load = async (id = eventId) => {
+    if (!id) return;
+    setLoading(true); setError('');
+    try {
+      const response = await fetch(`/api/registrations?event_id=${encodeURIComponent(id)}`, { cache: 'no-store' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Unable to load registrations.');
+      setEvent(body.event || null); setRegistrations(body.registrations || []);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to load registrations.'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { void params.then(({ eventId: id }) => { setEventId(id); void load(id); }); }, [params]);
+
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return registrations;
+    return registrations.filter(reg => [reg.registration_number, reg.profiles?.full_name || '', reg.profiles?.email || '', reg.profiles?.phone || '', reg.status].some(value => value.toLowerCase().includes(normalized)));
+  }, [registrations, query]);
+
+  const openAdd = () => { setForm({ full_name: '', email: '', phone: '', total_amount: String(event?.price ?? 0) }); setError(''); setSuccess(''); setShowAdd(true); };
+  const addRegistration = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true); setError(''); setSuccess('');
+    try {
+      const response = await fetch('/api/registrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, ...form, total_amount: Number(form.total_amount) }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Unable to register attendee.');
+      setShowAdd(false); setSuccess(body.message || 'Attendee registered successfully.'); await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to register attendee.'); }
+    finally { setSaving(false); }
+  };
+
+  const saveRegistration = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!editing) return; setSaving(true); setError(''); setSuccess('');
+    try {
+      const response = await fetch('/api/registrations', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editing.id, status: editing.status, total_amount: Number(editing.total_amount) }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Unable to update registration.');
+      setEditing(null); setSuccess(body.message || 'Registration updated.'); await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to update registration.'); }
+    finally { setSaving(false); }
+  };
+
+  const cancelRegistration = async (registration: Registration) => {
+    setMenuId(null);
+    if (!window.confirm(`Cancel registration ${registration.registration_number} for ${registration.profiles?.full_name || 'this attendee'}?`)) return;
+    setSaving(true); setError(''); setSuccess('');
+    try {
+      const response = await fetch('/api/registrations', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: registration.id }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Unable to cancel registration.');
+      setSuccess(body.message || 'Registration cancelled.'); await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to cancel registration.'); }
+    finally { setSaving(false); }
+  };
+
+  const exportCsv = () => {
+    if (!event) return;
+    const rows = [['Registration #', 'Attendee', 'Email', 'Phone', 'Status', 'Amount', 'Ticket', 'Registered']];
+    filtered.forEach(reg => rows.push([reg.registration_number, reg.profiles?.full_name || '', reg.profiles?.email || '', reg.profiles?.phone || '', reg.status, String(reg.total_amount ?? 0), reg.tickets?.[0]?.ticket_code || '', new Date(reg.created_at).toLocaleString('en-IN')]));
+    const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${event.slug}-registrations.csv`; anchor.click(); URL.revokeObjectURL(url);
+  };
+
+  if (loading && !event) return <div className="p-12 text-center text-gray-500"><Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />Loading event registrations…</div>;
+  if (!event) return <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-xs text-red-300">{error || 'Event not found.'}</div>;
+
+  return <div className="space-y-6" onClick={() => menuId && setMenuId(null)}>
+    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="flex items-start gap-3"><Link href="/registrations" className="mt-1 p-2.5 rounded-xl bg-gray-900 border border-gray-800 text-gray-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></Link><div><p className="text-[10px] uppercase tracking-wider font-bold text-[#e59838]">Event Registration Register</p><h1 className="text-2xl font-extrabold text-white">{event.title}</h1><p className="text-xs text-gray-400 mt-1">{new Date(event.start_at).toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}</p></div></div>
+      <div className="flex flex-wrap gap-2"><button type="button" onClick={exportCsv} className="px-4 py-2.5 rounded-xl bg-gray-900 border border-gray-800 text-xs font-bold text-gray-300">Export CSV</button><button type="button" onClick={openAdd} className="px-4 py-2.5 rounded-xl gradient-terracotta text-xs font-bold text-white flex items-center gap-2"><PlusCircle className="w-4 h-4" /> Add Attendee</button></div>
+    </div>
+    {error && <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-xs text-red-300">{error}</div>}
+    {success && <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 text-xs text-emerald-300">{success}</div>}
+
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><Stat label="Registered" value={`${event.registered_count || 0} / ${event.capacity || 0}`} /><Stat label="Confirmed" value={registrations.filter(r => r.status === 'CONFIRMED').length} /><Stat label="Cancelled" value={registrations.filter(r => r.status === 'CANCELLED').length} /></div>
+    <div className="dashboard-card rounded-2xl border border-gray-800 overflow-hidden"><div className="p-4 border-b border-gray-800 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between"><div><p className="text-sm font-bold text-white">Registered Users</p><p className="text-[10px] text-gray-500">Complete attendee list for this event. Use the three-dot menu for actions.</p></div><div className="relative w-full sm:w-72"><Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search attendee..." className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-gray-950 border border-gray-800 text-xs text-white outline-none" /></div></div>
+      {loading ? <div className="p-12 text-center text-gray-500"><Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />Refreshing registrations…</div> : filtered.length === 0 ? <div className="p-12 text-center text-gray-500"><UserRound className="w-7 h-7 mx-auto mb-2" />No registrations match this search.</div> : <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="bg-gray-900/90 text-gray-400 text-[11px] uppercase border-b border-gray-800"><th className="p-4">Registration</th><th className="p-4">Attendee</th><th className="p-4">Ticket</th><th className="p-4">Amount</th><th className="p-4">Status</th><th className="p-4">Registered</th><th className="p-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-gray-800/60 text-xs">{filtered.map(reg => <tr key={reg.id} className="hover:bg-gray-900/40"><td className="p-4 font-mono font-bold text-purple-300">{reg.registration_number}</td><td className="p-4"><span className="font-bold text-white block">{reg.profiles?.full_name || 'Attendee'}</span><span className="text-[10px] text-gray-500 flex items-center gap-1 mt-1"><Mail className="w-3 h-3" />{reg.profiles?.email || '—'}{reg.profiles?.phone ? ` · ${reg.profiles.phone}` : ''}</span></td><td className="p-4"><span className="font-mono text-gray-300">{reg.tickets?.[0]?.ticket_code || '—'}</span><span className="block text-[9px] text-gray-600 mt-1">{reg.tickets?.[0]?.status || 'No ticket'}</span></td><td className="p-4 font-bold text-white">{formatCurrency(Number(reg.total_amount || 0), reg.currency || 'INR')}</td><td className="p-4"><span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${statusClass[reg.status] || 'bg-gray-900 text-gray-300 border-gray-700'}`}>{reg.status}</span></td><td className="p-4 text-gray-500">{new Date(reg.created_at).toLocaleString('en-IN')}</td><td className="p-4 text-right"><div className="relative inline-block"><button type="button" onClick={e => { e.stopPropagation(); setMenuId(menuId === reg.id ? null : reg.id); }} className="p-2 rounded-lg bg-gray-900 border border-gray-800 text-gray-400 hover:text-white" aria-label="Registration actions"><MoreVertical className="w-4 h-4" /></button>{menuId === reg.id && <div onClick={e => e.stopPropagation()} className="absolute right-0 z-30 mt-2 w-48 rounded-xl border border-gray-700 bg-[#151720] p-1.5 shadow-2xl"><button type="button" onClick={() => { setProfile(reg.profiles); setMenuId(null); }} className="w-full text-left rounded-lg px-3 py-2 text-xs font-semibold text-gray-200 hover:bg-white/5 flex items-center gap-2"><User className="w-3.5 h-3.5" /> View Profile</button><button type="button" onClick={() => { setEditing({ ...reg }); setMenuId(null); }} className="w-full text-left rounded-lg px-3 py-2 text-xs font-semibold text-gray-200 hover:bg-white/5 flex items-center gap-2"><Edit3 className="w-3.5 h-3.5" /> Edit Registration</button>{reg.status !== 'CANCELLED' && <button type="button" disabled={saving} onClick={() => void cancelRegistration(reg)} className="w-full text-left rounded-lg px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-950/30 flex items-center gap-2"><Trash2 className="w-3.5 h-3.5" /> Cancel Registration</button>}</div>}</div></td></tr>)}</tbody></table></div>}
+    </div>
+
+    {showAdd && <Modal title="Add attendee manually" onClose={() => setShowAdd(false)}><form onSubmit={addRegistration} className="space-y-4"><Field label="Full name" value={form.full_name} onChange={v => setForm({ ...form, full_name: v })} required /><Field label="Email" type="email" value={form.email} onChange={v => setForm({ ...form, email: v })} required /><Field label="Phone" value={form.phone} onChange={v => setForm({ ...form, phone: v })} /><Field label="Registration amount" type="number" value={form.total_amount} onChange={v => setForm({ ...form, total_amount: v })} /><p className="text-[10px] text-gray-500">If the email already belongs to a platform profile, that profile will be linked. Manual registrations are confirmed and receive an active ticket.</p><Actions busy={saving} submit="Register attendee" cancel={() => setShowAdd(false)} /></form></Modal>}
+    {editing && <Modal title={`Edit ${editing.registration_number}`} onClose={() => setEditing(null)}><form onSubmit={saveRegistration} className="space-y-4"><div className="rounded-xl border border-white/10 bg-gray-950/40 p-3"><p className="text-[10px] uppercase text-gray-500">Attendee</p><p className="mt-1 font-bold text-white">{editing.profiles?.full_name || 'Attendee'}</p><p className="text-[10px] text-gray-500">{editing.profiles?.email || '—'}</p></div><Field label="Registration amount" type="number" value={String(editing.total_amount ?? 0)} onChange={v => setEditing({ ...editing, total_amount: Number(v) })} /><label className="block"><span className="text-xs font-bold text-gray-300">Status</span><select value={editing.status} onChange={e => setEditing({ ...editing, status: e.target.value as Registration['status'] })} className="mt-1.5 w-full px-3.5 py-3 rounded-xl bg-gray-950 border border-gray-800 text-sm text-white"><option value="CONFIRMED">Confirmed</option><option value="PENDING">Pending</option><option value="CANCELLED">Cancelled</option></select></label><Actions busy={saving} submit="Save registration" cancel={() => setEditing(null)} /></form></Modal>}
+    {profile && <Modal title="Attendee Profile" onClose={() => setProfile(null)}><div className="space-y-5"><div className="flex items-center gap-4">{profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover border border-gray-700" /> : <div className="w-16 h-16 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center"><User className="w-7 h-7 text-gray-500" /></div>}<div><p className="text-lg font-extrabold text-white">{profile.full_name || 'Attendee'}</p><p className="text-xs text-gray-500">{profile.email || 'No email'}</p></div></div><div className="grid sm:grid-cols-2 gap-3"><Info label="Phone" value={profile.phone || 'Not provided'} /><Info label="Profile created" value={profile.created_at ? new Date(profile.created_at).toLocaleDateString('en-IN') : '—'} /></div><div className="rounded-xl border border-white/10 bg-gray-950/40 p-4"><p className="text-[10px] uppercase tracking-wider text-gray-500">Bio</p><p className="mt-2 text-sm text-gray-300 whitespace-pre-wrap">{profile.bio || 'No bio available.'}</p></div></div></Modal>}
+  </div>;
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) { return <div className="dashboard-card rounded-2xl border border-gray-800 p-4"><p className="text-[10px] uppercase tracking-wider text-gray-500">{label}</p><p className="text-xl font-black text-white mt-1">{value}</p></div>; }
+function Field({ label, value, onChange, type = 'text', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) { return <label className="block"><span className="text-xs font-bold text-gray-300">{label}</span><input type={type} value={value} onChange={e => onChange(e.target.value)} required={required} className="mt-1.5 w-full px-3.5 py-3 rounded-xl bg-gray-950 border border-gray-800 text-sm text-white outline-none" /></label>; }
+function Actions({ busy, submit, cancel }: { busy: boolean; submit: string; cancel: () => void }) { return <div className="flex justify-end gap-2"><button type="button" onClick={cancel} className="px-4 py-2.5 rounded-xl bg-gray-900 border border-gray-700 text-xs font-bold text-gray-300">Cancel</button><button type="submit" disabled={busy} className="px-4 py-2.5 rounded-xl gradient-terracotta text-xs font-bold text-white disabled:opacity-50">{busy ? 'Saving…' : submit}</button></div>; }
+function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/10 bg-gray-950/40 p-3"><p className="text-[10px] uppercase text-gray-500">{label}</p><p className="mt-1 text-xs font-semibold text-gray-200">{value}</p></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"><div className="w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-white/10 bg-[#151720] p-6 shadow-2xl"><div className="flex items-center justify-between mb-5"><h2 className="text-lg font-bold text-white">{title}</h2><button type="button" onClick={onClose} className="text-gray-500 hover:text-white" aria-label="Close"><X className="w-5 h-5" /></button></div>{children}</div></div>; }
