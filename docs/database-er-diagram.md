@@ -1,8 +1,68 @@
-# Database Entity-Relationship (ER) Diagram
+# Database Entity-Relationship (ER) Diagram & Architecture Specification
 
-This document contains the visual Entity-Relationship diagram for **The Social Scene** Supabase PostgreSQL relational database schema.
+This document details the relational database schema for **The Social Scene** platform built on Supabase PostgreSQL.
 
-## 📊 Complete Database ER Diagram
+---
+
+## 🏗️ High-Level Relational Schema Overview
+
+```mermaid
+erDiagram
+    profiles ||--o{ user_roles : "possesses"
+    roles ||--o{ user_roles : "assigned"
+    roles ||--o{ role_permissions : "includes"
+    permissions ||--o{ role_permissions : "granted"
+
+    profiles ||--o{ host_applications : "submits"
+    profiles ||--o{ host_applications : "reviews"
+
+    event_categories ||--o{ events : "classifies"
+    venues ||--o{ events : "hosts"
+    profiles ||--o{ events : "created_by"
+    events ||--o{ event_hosts : "has_hosts"
+    profiles ||--o{ event_hosts : "co_hosts"
+    events ||--o{ event_images : "media"
+    events ||--o{ event_schedules : "timeline"
+
+    events ||--o{ registrations : "booked_in"
+    profiles ||--o{ registrations : "registers"
+    registrations ||--o{ registration_items : "breakdown"
+
+    registrations ||--|| orders : "creates"
+    profiles ||--o{ orders : "owns"
+    orders ||--o{ payments : "processed_via"
+    payments ||--o{ refunds : "refunded_via"
+
+    registrations ||--o{ tickets : "generates"
+    events ||--o{ tickets : "valid_for"
+    profiles ||--o{ tickets : "holds"
+
+    tickets ||--o| checkins : "verifies"
+    events ||--o{ checkins : "venue_location"
+    profiles ||--o{ checkins : "attendee"
+    profiles ||--o{ checkins : "scanner_staff"
+
+    tickets ||--o{ attendance_events : "tracks"
+    events ||--o{ attendance_events : "tracks"
+    profiles ||--o{ attendance_events : "attendee"
+
+    events ||--o{ waitlists : "queue"
+    profiles ||--o{ waitlists : "enrolled"
+
+    coupons ||--o{ coupon_redemptions : "redeemed"
+    profiles ||--o{ coupon_redemptions : "used_by"
+    registrations ||--o{ coupon_redemptions : "applied"
+
+    events ||--o{ reviews : "feedback"
+    profiles ||--o{ reviews : "authored"
+
+    profiles ||--o{ notifications : "sent_to"
+    profiles ||--o{ audit_logs : "triggered_by"
+```
+
+---
+
+## 🛡️ 1. User Identity & Multi-Role RBAC Domain
 
 ```mermaid
 erDiagram
@@ -38,6 +98,27 @@ erDiagram
         uuid role_id FK
         uuid permission_id FK
     }
+    host_applications {
+        uuid id PK
+        uuid profile_id FK
+        uuid reviewed_by FK
+        text status
+    }
+
+    profiles ||--o{ user_roles : "has"
+    roles ||--o{ user_roles : "assigned_to"
+    roles ||--o{ role_permissions : "has"
+    permissions ||--o{ role_permissions : "granted_to"
+    profiles ||--o{ host_applications : "applies"
+    profiles ||--o{ host_applications : "reviews"
+```
+
+---
+
+## 🎪 2. Event Operations & Venue Management Domain
+
+```mermaid
+erDiagram
     event_categories {
         uuid id PK
         text name
@@ -80,6 +161,28 @@ erDiagram
         timestamp start_time
         timestamp end_time
     }
+    reviews {
+        uuid id PK
+        uuid event_id FK
+        uuid user_id FK
+        integer rating
+        text comment
+    }
+
+    event_categories ||--o{ events : "categorizes"
+    venues ||--o{ events : "located_at"
+    events ||--o{ event_images : "gallery"
+    events ||--o{ event_hosts : "hosts"
+    events ||--o{ event_schedules : "itinerary"
+    events ||--o{ reviews : "feedback"
+```
+
+---
+
+## 🎟️ 3. Registrations, Ticketing & Venue Check-In Domain
+
+```mermaid
+erDiagram
     registrations {
         uuid id PK
         text registration_number
@@ -111,20 +214,40 @@ erDiagram
         uuid checked_in_by FK
         timestamp checked_in_at
     }
+    attendance_events {
+        uuid id PK
+        uuid ticket_id FK
+        uuid event_id FK
+        uuid user_id FK
+        uuid scanned_by FK
+        text type
+    }
     waitlists {
         uuid id PK
         uuid event_id FK
         uuid user_id FK
         integer position
-        text status
     }
+
+    registrations ||--o{ registration_items : "contains"
+    registrations ||--o{ tickets : "issues"
+    tickets ||--o| checkins : "scanned"
+    tickets ||--o{ attendance_events : "logs"
+```
+
+---
+
+## 💳 4. Orders, Payments & Financial Operations Domain
+
+```mermaid
+erDiagram
     orders {
         uuid id PK
         uuid registration_id FK
         uuid user_id FK
         numeric amount
-        text status
         text razorpay_order_id
+        text status
     }
     payments {
         uuid id PK
@@ -152,103 +275,14 @@ erDiagram
         uuid user_id FK
         uuid registration_id FK
     }
-    reviews {
-        uuid id PK
-        uuid event_id FK
-        uuid user_id FK
-        integer rating
-        text status
-    }
-    notifications {
-        uuid id PK
-        uuid user_id FK
-        text type
-        text title
-    }
-    audit_logs {
-        uuid id PK
-        uuid actor_user_id FK
-        text action
-        text entity_type
-    }
-    attendance_events {
-        uuid id PK
-        uuid ticket_id FK
-        uuid event_id FK
-        uuid user_id FK
-        uuid scanned_by FK
-        text type
-    }
     payment_webhook_events {
         uuid id PK
         text razorpay_event_id
         text event_type
         text status
     }
-    host_applications {
-        uuid id PK
-        uuid profile_id FK
-        uuid reviewed_by FK
-        text status
-    }
 
-    profiles ||--o{ user_roles : "has"
-    roles ||--o{ user_roles : "assigned_to"
-    roles ||--o{ role_permissions : "has"
-    permissions ||--o{ role_permissions : "assigned_to"
-
-    profiles ||--o{ host_applications : "applicant"
-    profiles ||--o{ host_applications : "reviewer"
-
-    event_categories ||--o{ events : "categorizes"
-    venues ||--o{ events : "hosts_at"
-    profiles ||--o{ events : "primary_host"
-    profiles ||--o{ event_hosts : "co_host"
-    events ||--o{ event_hosts : "co_hosts"
-    events ||--o{ event_images : "gallery"
-    events ||--o{ event_schedules : "schedule"
-
-    events ||--o{ registrations : "registers_for"
-    profiles ||--o{ registrations : "registers"
-    registrations ||--o{ registration_items : "items"
-
-    registrations ||--|| orders : "generates"
-    profiles ||--o{ orders : "places"
-    orders ||--o{ payments : "paid_via"
-    payments ||--o{ refunds : "refunded_via"
-
-    registrations ||--o{ tickets : "issues"
-    events ||--o{ tickets : "valid_for"
-    profiles ||--o{ tickets : "owns"
-
-    tickets ||--o| checkins : "scanned"
-    events ||--o{ checkins : "venue_checkin"
-    profiles ||--o{ checkins : "attendee"
-    profiles ||--o{ checkins : "scanner"
-
-    tickets ||--o{ attendance_events : "logs"
-    events ||--o{ attendance_events : "logs"
-    profiles ||--o{ attendance_events : "attendee"
-    profiles ||--o{ attendance_events : "scanner"
-
-    events ||--o{ waitlists : "queue"
-    profiles ||--o{ waitlists : "waits"
-
-    coupons ||--o{ coupon_redemptions : "redeemed"
-    profiles ||--o{ coupon_redemptions : "redeemed_by"
-    registrations ||--o{ coupon_redemptions : "applied_to"
-
-    events ||--o{ reviews : "reviewed"
-    profiles ||--o{ reviews : "author"
-
-    profiles ||--o{ notifications : "notified"
-    profiles ||--o{ audit_logs : "actor"
+    orders ||--o{ payments : "payment_records"
+    payments ||--o{ refunds : "refund_records"
+    coupons ||--o{ coupon_redemptions : "redemptions"
 ```
-
-## 📋 Core Modules Summary
-
-1. **User Identity & RBAC:** `profiles`, `roles`, `permissions`, `user_roles`, `role_permissions`
-2. **Event & Venue Management:** `event_categories`, `venues`, `events`, `event_images`, `event_hosts`, `event_schedules`
-3. **Registration & Ticketing:** `registrations`, `registration_items`, `tickets`, `checkins`, `attendance_events`, `waitlists`
-4. **Checkout & Financial Operations:** `orders`, `payments`, `refunds`, `coupons`, `coupon_redemptions`, `payment_webhook_events`
-5. **Community & Platform Operations:** `reviews`, `notifications`, `audit_logs`, `host_applications`
