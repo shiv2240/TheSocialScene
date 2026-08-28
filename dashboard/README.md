@@ -1,258 +1,68 @@
-# The Social Scene — Operations Dashboard
+# The Social Scene — Operations & Host Dashboard
 
 Private administration portal for hosts, event managers, and check-in staff (`https://admin.thesocialscene.club`).
 
-## Key Features
-
-- **Operations Overview:** KPI cards and Recharts revenue/registration volume charts.
-- **Event Creator Wizard:** 9-section multi-step administrative experience configuration.
-- **Check-in Camera Scanner:** Dedicated operational scanner with camera feed, manual ticket code fallback, and double check-in prevention.
-- **Registrations & Financials:** Attendee lists, CSV exporter, order records, and Razorpay transaction captures.
-- **Multi-Role Access Control (RBAC):** Server-enforced multi-role authorization and access status controls for Super Admins, Admins, Hosts, and Check-in Staff (`00016_dashboard_access_status_rbac.sql` & `00017_multi_role_rbac.sql`).
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
+[![Recharts](https://img.shields.io/badge/Recharts-3.10-blue)](https://recharts.org/)
+[![html5--qrcode](https://img.shields.io/badge/html5--qrcode-2.3-green)](https://github.com/mebjas/html5-qrcode)
 
 ---
 
-## 📊 Database ER Diagram
+## 🔑 Key Features Implemented
 
-Below is the complete database Entity-Relationship diagram for backend services powering the dashboard:
+- **Operations Telemetry Overview:** Real-time KPI summary cards and interactive Recharts graphs tracking revenue metrics and registration volume trends.
+- **Event Creator Wizard:** 9-step administrative form for configuring event metadata, schedules, venue details, pricing, tickets, and cover imagery.
+- **Camera Check-In Scanner:** Dedicated operational scanner utilizing `html5-qrcode` to capture camera video feed, verify pass QR payloads via server RPC, provide manual ticket code input fallback, and prevent duplicate check-ins.
+- **Multi-Role Access Control (RBAC):** Server-enforced authorization supporting multiple simultaneous roles per account (`SUPER_ADMIN`, `ADMIN`, `HOST`, `CHECKIN_STAFF`, `USER`).
+- **User & Access Management:** Interactive [`AccessActionMenu`](file:///d:/Freelance/Project-12%20%28TheSocialScene/dashboard/components/access/AccessActionMenu.tsx) component allowing Super Admins to assign/revoke roles and modify access status (`ACTIVE`, `DEACTIVATED`, `SUSPENDED`).
+- **Host Applications Portal:** View, review, approve, or reject incoming host application proposals submitted through the public website.
+- **Registrations & Financials:** Full attendee rosters, CSV export functionality, transaction logs, and Razorpay payment status tracking.
+
+---
+
+## 🔒 Security & Route Protection
+
+- **Route Guarding:** [`DashboardRouteGuard`](file:///d:/Freelance/Project-12%20%28TheSocialScene/dashboard/components/layout/DashboardRouteGuard.tsx) validates the user's active session and evaluates permissions before rendering protected pages.
+- **Server Authentication:** Built on `@supabase/ssr` with HttpOnly server cookies to prevent token theft or unauthorized API execution.
+- **Permission Checking:** Backend API routes verify permissions against `00017_multi_role_rbac.sql` database policies.
+
+---
+
+## 📊 Dashboard RBAC & Data Model ER Diagram
 
 ```mermaid
 erDiagram
-    profiles {
-        uuid id PK
-        uuid auth_user_id
-        text full_name
-        text phone
-        text email
-        text status
-        boolean phone_verified
-        boolean email_verified
-    }
-    roles {
-        uuid id PK
-        text name
-        text description
-        boolean is_system
-    }
-    permissions {
-        uuid id PK
-        text key
-        text description
-        text category
-    }
-    user_roles {
-        uuid id PK
-        uuid user_id FK
-        uuid role_id FK
-    }
-    role_permissions {
-        uuid id PK
-        uuid role_id FK
-        uuid permission_id FK
-    }
-    event_categories {
-        uuid id PK
-        text name
-        text slug
-    }
-    venues {
-        uuid id PK
-        text name
-        text slug
-        integer capacity
-    }
-    events {
-        uuid id PK
-        text title
-        text slug
-        uuid category_id FK
-        uuid host_id FK
-        uuid venue_id FK
-        timestamp start_at
-        timestamp end_at
-        integer capacity
-        numeric price
-        text status
-    }
-    event_images {
-        uuid id PK
-        uuid event_id FK
-        text image_url
-    }
-    event_hosts {
-        uuid id PK
-        uuid event_id FK
-        uuid host_profile_id FK
-        text role
-    }
-    event_schedules {
-        uuid id PK
-        uuid event_id FK
-        text title
-        timestamp start_time
-        timestamp end_time
-    }
-    registrations {
-        uuid id PK
-        text registration_number
-        uuid event_id FK
-        uuid user_id FK
-        text status
-        numeric total_amount
-    }
-    registration_items {
-        uuid id PK
-        uuid registration_id FK
-        text ticket_type
-        numeric unit_price
-        integer quantity
-    }
-    tickets {
-        uuid id PK
-        text ticket_code
-        uuid registration_id FK
-        uuid event_id FK
-        uuid user_id FK
-        text status
-    }
-    checkins {
-        uuid id PK
-        uuid ticket_id FK
-        uuid event_id FK
-        uuid user_id FK
-        uuid checked_in_by FK
-        timestamp checked_in_at
-    }
-    waitlists {
-        uuid id PK
-        uuid event_id FK
-        uuid user_id FK
-        integer position
-        text status
-    }
-    orders {
-        uuid id PK
-        uuid registration_id FK
-        uuid user_id FK
-        numeric amount
-        text status
-        text razorpay_order_id
-    }
-    payments {
-        uuid id PK
-        uuid order_id FK
-        text provider
-        text provider_payment_id
-        numeric amount
-        text status
-    }
-    refunds {
-        uuid id PK
-        uuid payment_id FK
-        numeric amount
-        text status
-    }
-    coupons {
-        uuid id PK
-        text code
-        text discount_type
-        numeric discount_value
-    }
-    coupon_redemptions {
-        uuid id PK
-        uuid coupon_id FK
-        uuid user_id FK
-        uuid registration_id FK
-    }
-    reviews {
-        uuid id PK
-        uuid event_id FK
-        uuid user_id FK
-        integer rating
-        text status
-    }
-    notifications {
-        uuid id PK
-        uuid user_id FK
-        text type
-        text title
-    }
-    audit_logs {
-        uuid id PK
-        uuid actor_user_id FK
-        text action
-        text entity_type
-    }
-    attendance_events {
-        uuid id PK
-        uuid ticket_id FK
-        uuid event_id FK
-        uuid user_id FK
-        uuid scanned_by FK
-        text type
-    }
-    payment_webhook_events {
-        uuid id PK
-        text razorpay_event_id
-        text event_type
-        text status
-    }
-    host_applications {
-        uuid id PK
-        uuid profile_id FK
-        uuid reviewed_by FK
-        text status
-    }
-
-    profiles ||--o{ user_roles : "has"
-    roles ||--o{ user_roles : "assigned_to"
-    roles ||--o{ role_permissions : "has"
-    permissions ||--o{ role_permissions : "assigned_to"
+    profiles ||--o{ user_roles : "assigned_roles"
+    roles ||--o{ user_roles : "role_definition"
+    roles ||--o{ role_permissions : "contains"
+    permissions ||--o{ role_permissions : "key"
 
     profiles ||--o{ host_applications : "applicant"
     profiles ||--o{ host_applications : "reviewer"
 
-    event_categories ||--o{ events : "categorizes"
-    venues ||--o{ events : "hosts_at"
-    profiles ||--o{ events : "primary_host"
-    profiles ||--o{ event_hosts : "co_host"
-    events ||--o{ event_hosts : "co_hosts"
-    events ||--o{ event_images : "gallery"
-    events ||--o{ event_schedules : "schedule"
+    events ||--o{ registrations : "monitored_in"
+    registrations ||--o{ tickets : "issued"
+    tickets ||--o| checkins : "validated_by_scanner"
 
-    events ||--o{ registrations : "registers_for"
-    profiles ||--o{ registrations : "registers"
-    registrations ||--o{ registration_items : "items"
+    tickets ||--o{ attendance_events : "logged_by_scanner"
+    profiles ||--o{ checkins : "scanned_by_staff"
+    profiles ||--o{ audit_logs : "action_logged"
+```
 
-    registrations ||--|| orders : "generates"
-    profiles ||--o{ orders : "places"
-    orders ||--o{ payments : "paid_via"
-    payments ||--o{ refunds : "refunded_via"
+> 📖 **Full Database Specification:** See [`docs/database-er-diagram.md`](file:///d:/Freelance/Project-12%20%28TheSocialScene/docs/database-er-diagram.md) for field-level database diagrams.
 
-    registrations ||--o{ tickets : "issues"
-    events ||--o{ tickets : "valid_for"
-    profiles ||--o{ tickets : "owns"
+---
 
-    tickets ||--o| checkins : "scanned"
-    events ||--o{ checkins : "venue_checkin"
-    profiles ||--o{ checkins : "attendee"
-    profiles ||--o{ checkins : "scanner"
+## ⚡ Local Development Setup
 
-    tickets ||--o{ attendance_events : "logs"
-    events ||--o{ attendance_events : "logs"
-    profiles ||--o{ attendance_events : "attendee"
-    profiles ||--o{ attendance_events : "scanner"
+```bash
+# Install dependencies
+npm install
 
-    events ||--o{ waitlists : "queue"
-    profiles ||--o{ waitlists : "waits"
+# Configure environment credentials
+copy .env.example .env.local
 
-    coupons ||--o{ coupon_redemptions : "redeemed"
-    profiles ||--o{ coupon_redemptions : "redeemed_by"
-    registrations ||--o{ coupon_redemptions : "applied_to"
-
-    events ||--o{ reviews : "reviewed"
-    profiles ||--o{ reviews : "author"
-
-    profiles ||--o{ notifications : "notified"
-    profiles ||--o{ audit_logs : "actor"
+# Run dashboard on port 3001
+npm run dev -- -p 3001
+# Open http://localhost:3001
 ```
