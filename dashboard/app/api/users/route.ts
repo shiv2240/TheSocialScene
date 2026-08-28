@@ -7,12 +7,19 @@ import { MANAGEABLE_DASHBOARD_ROLES, provisionDashboardUser, type ManageableDash
 export const runtime = 'nodejs';
 
 const DASHBOARD_ROLES = ['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'CHECKIN_STAFF', 'EDITOR', 'FINANCE', 'SUPPORT'] as const;
-const createUserSchema = z.object({ full_name: z.string().trim().min(2).max(100), email: z.string().trim().email().max(200), phone: z.string().trim().min(8).max(20).optional().or(z.literal('')), role: z.enum(MANAGEABLE_DASHBOARD_ROLES) });
+const dashboardRoleSchema = z.enum(DASHBOARD_ROLES);
+const createUserSchema = z.object({
+  full_name: z.string().trim().min(2).max(100),
+  email: z.string().trim().email().max(200),
+  phone: z.string().trim().min(8).max(20).optional().or(z.literal('')),
+  role: z.enum(MANAGEABLE_DASHBOARD_ROLES),
+});
 const updateUserSchema = z.object({
   id: z.string().uuid(),
   full_name: z.string().trim().min(2).max(100).optional(),
   phone: z.string().trim().min(8).max(20).optional().nullable(),
-  role: z.enum(DASHBOARD_ROLES).nullable().optional(),
+  roles: z.array(dashboardRoleSchema).max(DASHBOARD_ROLES.length).optional(),
+  role: dashboardRoleSchema.nullable().optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED', 'PENDING']).optional(),
 });
 
@@ -20,9 +27,9 @@ async function requireSuperAdmin() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: 'Authentication required.' }, { status: 401 }) };
-  const { data: role, error } = await supabase.rpc('get_my_dashboard_role');
-  if (error) return { error: NextResponse.json({ error: 'Unable to resolve dashboard role.' }, { status: 500 }) };
-  if (role !== 'SUPER_ADMIN') return { error: NextResponse.json({ error: 'Only Super Admins can manage dashboard users.' }, { status: 403 }) };
+  const { data: roles, error } = await supabase.rpc('get_my_dashboard_roles');
+  if (error) return { error: NextResponse.json({ error: 'Unable to resolve dashboard roles.' }, { status: 500 }) };
+  if (!Array.isArray(roles) || !roles.includes('SUPER_ADMIN')) return { error: NextResponse.json({ error: 'Only Super Admins can manage dashboard users.' }, { status: 403 }) };
   return { supabase, user };
 }
 
@@ -52,14 +59,38 @@ export async function GET() {
       }
     }
     const roleById = new Map(roles.map((role) => [role.id, role]));
-    const roleByUserId = new Map<string, { name: string; description: string | null }>();
+    const rolesByUserId = new Map<string, RoleRow[]>();
     for (const mapping of roleMappings) {
       const role = roleById.get(mapping.role_id);
-      if (role && !roleByUserId.has(mapping.user_id)) roleByUserId.set(mapping.user_id, { name: role.name, description: role.description });
+      if (!role) continue;
+      const current = rolesByUserId.get(mapping.user_id) || [];
+      current.push(role);
+      rolesByUserId.set(mapping.user_id, current);
     }
     const users = profileRows.map((profile) => {
-      const role = roleByUserId.get(profile.id);
-      return { id: profile.id, user_id: profile.username ? `@${profile.username}` : null, auth_user_id: profile.auth_user_id, name: profile.full_name, age: profile.age, onboarding_completed: profile.onboarding_completed, email: profile.email, phone: profile.phone, status: profile.status, must_change_password: profile.must_change_password, created_at: profile.created_at, role: role?.name || 'UNASSIGNED', role_description: role?.description || null };
+      const userRoles = rolesByUserId.get(profile.id) || [];
+      const sortedRoles = [...userRoles].sort((a, b) => a.name.localeCompare(b.name));
+      const primaryRole = sortedRoles.find((role) => role.name === 'SUPER_ADMIN')?.name
+        || sortedRoles.find((role) => role.name === 'ADMIN')?.name
+        || sortedRoles[0]?.name
+        || 'UNASSIGNED';
+      return {
+        id: profile.id,
+        user_id: profile.username ? `@${profile.username}` : null,
+        auth_user_id: profile.auth_user_id,
+        name: profile.full_name,
+        age: profile.age,
+        onboarding_completed: profile.onboarding_completed,
+        email: profile.email,
+        phone: profile.phone,
+        status: profile.status,
+        must_change_password: profile.must_change_password,
+        created_at: profile.created_at,
+        role: primaryRole,
+        roles: sortedRoles.map((role) => role.name),
+        role_descriptions: sortedRoles.map((role) => ({ name: role.name, description: role.description })),
+        role_description: sortedRoles.find((role) => role.name === primaryRole)?.description || null,
+      };
     });
     return NextResponse.json({ users });
   } catch (error) {
@@ -81,8 +112,8 @@ export async function POST(request: NextRequest) {
     if (existingProfile?.auth_user_id) return NextResponse.json({ error: 'A dashboard account already exists for this email address.' }, { status: 409 });
     const provisioned = await provisionDashboardUser({ fullName: parsed.data.full_name, email, phone: parsed.data.phone || null, role: parsed.data.role as ManageableDashboardRole });
     const { data: actorProfile } = await admin.from('profiles').select('id').eq('auth_user_id', auth.user.id).maybeSingle();
-    if (actorProfile) await admin.from('audit_logs').insert({ actor_user_id: actorProfile.id, action: 'DASHBOARD_USER_CREATED', entity_type: 'PROFILE', entity_id: provisioned.profileId, metadata: { role: provisioned.role, email: provisioned.email } });
-    return NextResponse.json({ user: provisioned, message: 'Invitation sent. The user must set a password before first dashboard use.' }, { status: 201 });
+    if (actorProfile) await admin.from('audit_logs').insert({ actor_user_id: actorProfile.id, action: 'DASHBOARD_USER_CREATED', entity_type: 'PROFILE', entity_id: provisioned.profileId, metadata: { roles: [provisioned.role], email: provisioned.email } });
+    return NextResponse.json({ user: { ...provisioned, roles: [provisioned.role] }, message: 'Invitation sent. The user must set a password before first dashboard use.' }, { status: 201 });
   } catch (error) {
     console.error('[DASHBOARD USERS][POST]', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to create dashboard user.' }, { status: 500 });
@@ -99,9 +130,15 @@ export async function PATCH(request: NextRequest) {
     const { data: targetProfile, error: profileLookupError } = await admin.from('profiles').select('id,auth_user_id,email,full_name,phone,status').eq('id', parsed.data.id).maybeSingle();
     if (profileLookupError || !targetProfile) return NextResponse.json({ error: 'User profile not found.' }, { status: 404 });
 
-    const changingOwnRole = targetProfile.auth_user_id === auth.user.id && parsed.data.role !== undefined && parsed.data.role !== 'SUPER_ADMIN';
+    const requestedRoles = parsed.data.roles !== undefined
+      ? [...new Set(parsed.data.roles)]
+      : parsed.data.role !== undefined
+        ? (parsed.data.role ? [parsed.data.role] : [])
+        : undefined;
+    const changingOwnRoles = targetProfile.auth_user_id === auth.user.id && requestedRoles !== undefined;
     const changingOwnStatus = targetProfile.auth_user_id === auth.user.id && parsed.data.status === 'SUSPENDED';
-    if (changingOwnRole || changingOwnStatus) return NextResponse.json({ error: 'You cannot remove or suspend your own Super Admin access.' }, { status: 400 });
+    if (changingOwnRoles && !requestedRoles?.includes('SUPER_ADMIN')) return NextResponse.json({ error: 'You cannot remove your own Super Admin role.' }, { status: 400 });
+    if (changingOwnStatus) return NextResponse.json({ error: 'You cannot suspend your own Super Admin access.' }, { status: 400 });
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (parsed.data.full_name) updates.full_name = parsed.data.full_name;
@@ -110,19 +147,41 @@ export async function PATCH(request: NextRequest) {
     const { error: updateError } = await admin.from('profiles').update(updates).eq('id', targetProfile.id);
     if (updateError) throw updateError;
 
-    if (parsed.data.role !== undefined) {
-      await admin.from('user_roles').delete().eq('user_id', targetProfile.id);
-      if (parsed.data.role) {
-        const { data: roleRow, error: roleLookupError } = await admin.from('roles').select('id').eq('name', parsed.data.role).single();
-        if (roleLookupError || !roleRow) throw new Error(`Role ${parsed.data.role} is not configured.`);
-        const { error: roleInsertError } = await admin.from('user_roles').insert({ user_id: targetProfile.id, role_id: roleRow.id });
-        if (roleInsertError) throw roleInsertError;
+    let oldRoles: string[] = [];
+    if (requestedRoles !== undefined) {
+      const { data: oldMappings, error: oldMappingError } = await admin.from('user_roles').select('role_id').eq('user_id', targetProfile.id);
+      if (oldMappingError) throw oldMappingError;
+      const oldRoleIds = (oldMappings ?? []).map((mapping) => mapping.role_id);
+      if (oldRoleIds.length) {
+        const { data: oldRoleRows, error: oldRoleError } = await admin.from('roles').select('name').in('id', oldRoleIds);
+        if (oldRoleError) throw oldRoleError;
+        oldRoles = (oldRoleRows ?? []).map((row) => row.name);
+      }
+
+      const { data: roleRows, error: roleLookupError } = requestedRoles.length
+        ? await admin.from('roles').select('id,name').in('name', requestedRoles)
+        : { data: [], error: null };
+      if (roleLookupError) throw roleLookupError;
+      const foundRoles = (roleRows ?? []) as { id: string; name: string }[];
+      const foundNames = new Set(foundRoles.map((role) => role.name));
+      const missingRoles = requestedRoles.filter((name) => !foundNames.has(name));
+      if (missingRoles.length) throw new Error(`Roles not configured: ${missingRoles.join(', ')}`);
+
+      const { error: deleteError } = await admin.from('user_roles').delete().eq('user_id', targetProfile.id);
+      if (deleteError) throw deleteError;
+      if (foundRoles.length) {
+        const { error: insertError } = await admin.from('user_roles').insert(foundRoles.map((role) => ({ user_id: targetProfile.id, role_id: role.id })));
+        if (insertError) {
+          await admin.from('user_roles').delete().eq('user_id', targetProfile.id);
+          if (oldRoleIds.length) await admin.from('user_roles').insert(oldRoleIds.map((roleId) => ({ user_id: targetProfile.id, role_id: roleId })));
+          throw insertError;
+        }
       }
     }
 
     const { data: actorProfile } = await admin.from('profiles').select('id').eq('auth_user_id', auth.user.id).maybeSingle();
-    if (actorProfile) await admin.from('audit_logs').insert({ actor_user_id: actorProfile.id, action: 'DASHBOARD_USER_UPDATED', entity_type: 'PROFILE', entity_id: targetProfile.id, metadata: { new_role: parsed.data.role, new_status: parsed.data.status, email: targetProfile.email } });
-    return NextResponse.json({ message: 'User access updated successfully.' });
+    if (actorProfile) await admin.from('audit_logs').insert({ actor_user_id: actorProfile.id, action: 'DASHBOARD_USER_UPDATED', entity_type: 'PROFILE', entity_id: targetProfile.id, metadata: { previous_roles: oldRoles, new_roles: requestedRoles, new_status: parsed.data.status, email: targetProfile.email } });
+    return NextResponse.json({ message: 'User access updated successfully.', roles: requestedRoles });
   } catch (error) {
     console.error('[DASHBOARD USERS][PATCH]', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to update user.' }, { status: 500 });
@@ -144,7 +203,7 @@ export async function DELETE(request: NextRequest) {
     const { error: statusError } = await admin.from('profiles').update({ status: 'SUSPENDED', updated_at: new Date().toISOString() }).eq('id', target.id);
     if (statusError) throw statusError;
     const { data: actorProfile } = await admin.from('profiles').select('id').eq('auth_user_id', auth.user.id).maybeSingle();
-    if (actorProfile) await admin.from('audit_logs').insert({ actor_user_id: actorProfile.id, action: 'DASHBOARD_ACCESS_REVOKED', entity_type: 'PROFILE', entity_id: target.id, metadata: { email: target.email } });
+    if (actorProfile) await admin.from('audit_logs').insert({ actor_user_id: actorProfile.id, action: 'DASHBOARD_ACCESS_REVOKED', entity_type: 'PROFILE', entity_id: target.id, metadata: { email: target.email, roles: [] } });
     return NextResponse.json({ message: 'Dashboard access removed. The account remains retained for audit history.' });
   } catch (error) {
     console.error('[DASHBOARD USERS][DELETE]', error);
