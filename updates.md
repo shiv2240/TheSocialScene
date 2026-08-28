@@ -2,6 +2,11 @@
 
 This file tracks improvements that are intentionally deferred until the platform has more users, events, operational complexity, or revenue volume.
 
+## Recent Platform Updates (August 2026)
+
+- **Multi-Role RBAC Architecture:** Deployed migrations `00016_dashboard_access_status_rbac.sql` and `00017_multi_role_rbac.sql`.
+- **Concurrent Roles & Access Management:** System now supports users holding multiple roles concurrently (e.g. `HOST` + `ADMIN`) with fine-grained route protection (`DashboardRouteGuard`), access action controls (`AccessActionMenu`), and role management endpoints (`/api/roles`, `/api/hosts`, `/api/users`).
+
 ## Current Product Decisions
 
 - Authentication remains Firebase-based.

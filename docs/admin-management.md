@@ -2,9 +2,9 @@
 
 ## Role policy
 
-Only `SUPER_ADMIN` may create, deactivate, reactivate, or change the role of an `ADMIN`.
+Only `SUPER_ADMIN` may create, deactivate, reactivate, or change the role of an `ADMIN` or manage user access permissions across multi-role assignments (`00017_multi_role_rbac.sql`).
 
-`ADMIN` may manage operational platform content according to existing permissions, but must never be able to create another admin or elevate any account to `SUPER_ADMIN`.
+`ADMIN` may manage operational platform content according to existing permissions, but must never be able to create another admin or elevate any account to `SUPER_ADMIN`. Users may hold multiple roles simultaneously (e.g. `HOST` + `ADMIN`).
 
 ## Required controls
 

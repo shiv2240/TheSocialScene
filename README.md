@@ -63,7 +63,7 @@ cd dashboard && npm run dev -- -p 3001
 
 ## 🗄️ Database Migrations (Supabase PostgreSQL)
 
-Apply the migrations in `backend/supabase/migrations/` in sequence (00001 to 00015):
+Apply the migrations in `backend/supabase/migrations/` in sequence (00001 to 00017):
 
 1. `00001_initial_schema.sql` — Initial schema definitions.
 2. `00002_functions_triggers.sql` — Capacity lock and trigger functions.
@@ -77,6 +77,8 @@ Apply the migrations in `backend/supabase/migrations/` in sequence (00001 to 000
 10. `00012_revoke_public_rpc_execute.sql` — Revoke public execute access on administrative RPC functions.
 11. `00014_host_applications_and_dashboard_access.sql` — Host application submission & approval workflow.
 12. `00015_unify_dashboard_auth_with_existing_profiles.sql` — Unified dashboard authentication with existing profile structure.
+13. `00016_dashboard_access_status_rbac.sql` — Dashboard access status controls & user management.
+14. `00017_multi_role_rbac.sql` — Multi-role RBAC authorization framework & database functions.
 
 ---
 
