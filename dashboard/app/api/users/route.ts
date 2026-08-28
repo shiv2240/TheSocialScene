@@ -8,7 +8,8 @@ export const runtime = 'nodejs';
 const DASHBOARD_ROLES = ['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'CHECKIN_STAFF', 'EDITOR', 'FINANCE', 'SUPPORT'] as const;
 const dashboardRoleSchema = z.enum(DASHBOARD_ROLES);
 const createUserSchema = z.object({ full_name: z.string().trim().min(2).max(100), email: z.string().trim().email().max(200), phone: z.string().trim().min(8).max(20).optional().or(z.literal('')), role: z.enum(MANAGEABLE_DASHBOARD_ROLES) });
-const updateUserSchema = z.object({ id: z.string().uuid(), full_name: z.string().trim().min(2).max(100).optional(), phone: z.string().trim().min(8).max(20).optional().nullable(), roles: z.array(dashboardRoleSchema).max(DASHBOARD_ROLES.length).optional(), role: dashboardRoleSchema.nullable().optional(), status: z.enum(['ACTIVE', 'SUSPENDED', 'PENDING']).optional() });
+const assignableRoleSchema = z.string().trim().min(1).max(60);
+const updateUserSchema = z.object({ id: z.string().uuid(), full_name: z.string().trim().min(2).max(100).optional(), phone: z.string().trim().min(8).max(20).optional().nullable(), roles: z.array(assignableRoleSchema).max(30).optional(), role: assignableRoleSchema.nullable().optional(), status: z.enum(['ACTIVE', 'SUSPENDED', 'PENDING']).optional() });
 
 async function requireSuperAdmin() {
   const supabase = await createClient();
@@ -23,7 +24,6 @@ async function requireSuperAdmin() {
 type ProfileRow = { id: string; auth_user_id: string | null; full_name: string | null; username: string | null; age: number | null; onboarding_completed: boolean | null; email: string | null; phone: string | null; status: string | null; must_change_password: boolean | null; created_at: string | null; updated_at: string | null };
 type RoleMappingRow = { user_id: string; role_id: string };
 type RoleRow = { id: string; name: string; description: string | null };
-
 type UserRoleMapping = { role_id: string };
 type NamedRole = { name: string };
 type RoleIdRow = { id: string; name: string };
@@ -95,14 +95,14 @@ export async function PATCH(request: NextRequest) {
       const { data: roleRows, error: roleLookupError } = requestedRoles.length ? await admin.from('roles').select('id,name').in('name', requestedRoles) : { data: [] as RoleIdRow[], error: null };
       if (roleLookupError) throw roleLookupError;
       requestedRoleRows = (roleRows ?? []) as RoleIdRow[];
-      const foundNames = new Set(requestedRoleRows.map((role: RoleIdRow) => role.name));
+      const foundNames = new Set(requestedRoleRows.map((role) => role.name));
       const missingRoles = requestedRoles.filter((name) => !foundNames.has(name));
       if (missingRoles.length) return NextResponse.json({ error: `Roles not configured: ${missingRoles.join(', ')}` }, { status: 400 });
       const { data: oldMappings, error: oldMappingError } = await admin.from('user_roles').select('role_id').eq('user_id', targetProfile.id);
       if (oldMappingError) throw oldMappingError;
       const oldMappingRows = (oldMappings ?? []) as UserRoleMapping[];
-      oldRoleIds = oldMappingRows.map((mapping: UserRoleMapping) => mapping.role_id);
-      if (oldRoleIds.length) { const { data: oldRoleRows, error: oldRoleError } = await admin.from('roles').select('name').in('id', oldRoleIds); if (oldRoleError) throw oldRoleError; oldRoles = ((oldRoleRows ?? []) as NamedRole[]).map((row: NamedRole) => row.name); }
+      oldRoleIds = oldMappingRows.map((mapping) => mapping.role_id);
+      if (oldRoleIds.length) { const { data: oldRoleRows, error: oldRoleError } = await admin.from('roles').select('name').in('id', oldRoleIds); if (oldRoleError) throw oldRoleError; oldRoles = ((oldRoleRows ?? []) as NamedRole[]).map((row) => row.name); }
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -116,10 +116,10 @@ export async function PATCH(request: NextRequest) {
       const { error: deleteError } = await admin.from('user_roles').delete().eq('user_id', targetProfile.id);
       if (deleteError) throw deleteError;
       if (requestedRoleRows.length) {
-        const { error: insertError } = await admin.from('user_roles').insert(requestedRoleRows.map((role: RoleIdRow) => ({ user_id: targetProfile.id, role_id: role.id })));
+        const { error: insertError } = await admin.from('user_roles').insert(requestedRoleRows.map((role) => ({ user_id: targetProfile.id, role_id: role.id })));
         if (insertError) {
           await admin.from('user_roles').delete().eq('user_id', targetProfile.id);
-          if (oldRoleIds.length) await admin.from('user_roles').insert(oldRoleIds.map((roleId: string) => ({ user_id: targetProfile.id, role_id: roleId })));
+          if (oldRoleIds.length) await admin.from('user_roles').insert(oldRoleIds.map((roleId) => ({ user_id: targetProfile.id, role_id: roleId })));
           throw insertError;
         }
       }
