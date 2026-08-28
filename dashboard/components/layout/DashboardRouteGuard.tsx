@@ -21,10 +21,10 @@ function matches(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
-export function DashboardRouteGuard({ role, children }: { role: DashboardRole; children: React.ReactNode }) {
+export function DashboardRouteGuard({ roles, children }: { roles: DashboardRole[]; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const allowed = ROUTE_ACCESS[role].some((route) => matches(pathname, route));
+  const allowed = roles.some((role) => ROUTE_ACCESS[role]?.some((route) => matches(pathname, route)));
 
   React.useEffect(() => {
     if (!allowed) router.replace('/unauthorized');
