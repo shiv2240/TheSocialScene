@@ -7,6 +7,7 @@ import type { DashboardRole } from '@/lib/auth';
 export const runtime = 'nodejs';
 const REGISTRATION_ROLES = ['SUPER_ADMIN', 'ADMIN', 'HOST', 'EVENT_MANAGER', 'SUPPORT'] as const;
 type AuthContext = { admin: ReturnType<typeof getSupabaseAdmin>; profileId: string; roles: DashboardRole[] };
+type CheckinRow = { ticket_id: string; checked_in_at: string };
 
 async function requireRegistrationAccess(): Promise<AuthContext | NextResponse> {
   const supabase = await createClient();
@@ -29,6 +30,23 @@ async function ensureEventAccess(auth: AuthContext, eventId: string) {
   return { event };
 }
 
+async function attachAttendance(admin: ReturnType<typeof getSupabaseAdmin>, registrations: Array<{ id: string; status: string; tickets?: Array<{ ticket_code: string; status: string; id?: string }> | null }>, eventEndAt: string) {
+  const ticketIds = registrations.flatMap((registration) => (registration.tickets ?? []).map((ticket) => ticket.id).filter((id): id is string => Boolean(id)));
+  const checkinsByTicket = new Map<string, string>();
+  if (ticketIds.length) {
+    const { data, error } = await admin.from('checkins').select('ticket_id,checked_in_at').in('ticket_id', ticketIds);
+    if (error) throw error;
+    for (const row of (data ?? []) as CheckinRow[]) checkinsByTicket.set(row.ticket_id, row.checked_in_at);
+  }
+  const eventEnded = new Date(eventEndAt).getTime() <= Date.now();
+  return registrations.map((registration) => {
+    if (registration.status === 'CANCELLED') return { ...registration, attendance_status: '—', checked_in_at: null };
+    const ticket = registration.tickets?.[0];
+    const checkedInAt = ticket?.id ? checkinsByTicket.get(ticket.id) ?? null : null;
+    return { ...registration, attendance_status: checkedInAt ? 'PRESENT' : eventEnded ? 'ABSENT' : 'NOT_CHECKED_IN', checked_in_at: checkedInAt };
+  });
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireRegistrationAccess();
   if (isResponse(auth)) return auth;
@@ -37,9 +55,10 @@ export async function GET(request: NextRequest) {
     if (eventId) {
       const eventResult = await ensureEventAccess(auth, eventId);
       if ('error' in eventResult) return eventResult.error;
-      const { data: registrations, error } = await auth.admin.from('registrations').select('id,registration_number,event_id,user_id,status,total_amount,currency,created_at,updated_at,events!inner(id,title,slug,host_id,start_at,end_at,capacity,registered_count,price,currency,status,registration_open,cover_image),profiles!inner(id,full_name,email,phone,avatar_url,bio,created_at),tickets(ticket_code,status)').eq('event_id', eventId).order('created_at', { ascending: false });
+      const { data: registrations, error } = await auth.admin.from('registrations').select('id,registration_number,event_id,user_id,status,total_amount,currency,created_at,updated_at,events!inner(id,title,slug,host_id,start_at,end_at,capacity,registered_count,price,currency,status,registration_open,cover_image),profiles!inner(id,full_name,email,phone,avatar_url,bio,created_at),tickets(id,ticket_code,status)').eq('event_id', eventId).order('created_at', { ascending: false });
       if (error) throw error;
-      return NextResponse.json({ event: eventResult.event, registrations: registrations ?? [] });
+      const attendanceRegistrations = await attachAttendance(auth.admin, (registrations ?? []) as Array<{ id: string; status: string; tickets?: Array<{ id?: string; ticket_code: string; status: string }> | null }>, eventResult.event.end_at);
+      return NextResponse.json({ event: eventResult.event, registrations: attendanceRegistrations });
     }
     let eventQuery = auth.admin.from('events').select('id,title,slug,start_at,end_at,capacity,registered_count,price,currency,status,registration_open,cover_image,host_id').order('start_at', { ascending: false }).limit(250);
     if (isOnlyHostRole(auth.roles)) eventQuery = eventQuery.eq('host_id', auth.profileId);
@@ -72,10 +91,7 @@ export async function POST(request: NextRequest) {
     if (profileLookupError) throw profileLookupError;
     if (!profile) {
       const { data: created, error: createProfileError } = await admin.from('profiles').insert({ full_name: fullName, email, phone: phone || null, status: 'ACTIVE' }).select('id,full_name,email,phone,avatar_url,bio,created_at').single();
-      if (createProfileError) {
-        if (createProfileError.code === '23505') return NextResponse.json({ error: 'A user with this email or phone already exists. Search by email and try again.' }, { status: 409 });
-        throw createProfileError;
-      }
+      if (createProfileError) { if (createProfileError.code === '23505') return NextResponse.json({ error: 'A user with this email or phone already exists. Search by email and try again.' }, { status: 409 }); throw createProfileError; }
       profile = created;
     }
     const { data: existing, error: duplicateError } = await admin.from('registrations').select('id,status').eq('event_id', eventId).eq('user_id', profile.id).in('status', ['PENDING', 'CONFIRMED']).maybeSingle();
@@ -95,10 +111,7 @@ export async function POST(request: NextRequest) {
     if (!countUpdate) return NextResponse.json({ error: 'The event registration count changed. Please refresh and try again.' }, { status: 409 });
     await admin.from('audit_logs').insert({ actor_user_id: auth.profileId, action: 'REGISTRATION_CREATED_MANUALLY', entity_type: 'REGISTRATION', entity_id: registration.id, metadata: { event_id: eventId, user_id: profile.id, ticket_code: ticketCode, amount } });
     return NextResponse.json({ registration: { ...registration, events: eventResult.event, profiles: profile, ticket_code: ticketCode }, message: 'Attendee registered successfully.' }, { status: 201 });
-  } catch (error) {
-    console.error('[ADMIN REGISTRATIONS][POST]', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to create registration.' }, { status: 500 });
-  }
+  } catch (error) { console.error('[ADMIN REGISTRATIONS][POST]', error); return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to create registration.' }, { status: 500 }); }
 }
 
 export async function PATCH(request: NextRequest) {
@@ -144,10 +157,7 @@ export async function PATCH(request: NextRequest) {
     }
     await auth.admin.from('audit_logs').insert({ actor_user_id: auth.profileId, action: 'REGISTRATION_UPDATED', entity_type: 'REGISTRATION', entity_id: id, metadata: { previous_status: existing.status, new_status: nextStatus, previous_amount: existing.total_amount, new_amount: amount } });
     return NextResponse.json({ message: 'Registration updated successfully.' });
-  } catch (error) {
-    console.error('[ADMIN REGISTRATIONS][PATCH]', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to update registration.' }, { status: 500 });
-  }
+  } catch (error) { console.error('[ADMIN REGISTRATIONS][PATCH]', error); return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to update registration.' }, { status: 500 }); }
 }
 
 export async function DELETE(request: NextRequest) {
@@ -174,10 +184,7 @@ export async function DELETE(request: NextRequest) {
     if (updateError) throw updateError;
     await auth.admin.from('audit_logs').insert({ actor_user_id: auth.profileId, action: 'REGISTRATION_CANCELLED', entity_type: 'REGISTRATION', entity_id: id, metadata: { event_id: existing.event_id, user_id: existing.user_id } });
     return NextResponse.json({ message: 'Registration cancelled.' });
-  } catch (error) {
-    console.error('[ADMIN REGISTRATIONS][DELETE]', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to cancel registration.' }, { status: 500 });
-  }
+  } catch (error) { console.error('[ADMIN REGISTRATIONS][DELETE]', error); return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to cancel registration.' }, { status: 500 }); }
 }
 
 function randomCode() { return Math.random().toString(36).slice(2, 10).toUpperCase().padEnd(8, '0').slice(0, 8); }
