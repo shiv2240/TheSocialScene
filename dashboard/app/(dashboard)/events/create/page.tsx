@@ -3,161 +3,36 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Calendar, CheckCircle2, FileText, Image as ImageIcon, MapPin, Ticket, Users, Upload } from 'lucide-react';
+import { EventTagsPicker } from '@/components/events/EventTagsPicker';
 
-const steps = [
-  'Basic Information', 'Media & Cover', 'Schedule & Timing', 'Location & Venue',
-  'Capacity & Pricing', 'Registration', 'Review & Publish',
-];
-
+const steps = ['Basic Information', 'Media & Cover', 'Schedule & Timing', 'Location & Venue', 'Capacity & Pricing', 'Registration', 'Review & Publish'];
 type Category = { id: string; name: string; slug: string };
-
-type FormData = {
-  title: string; slug: string; short_description: string; description: string;
-  category_id: string; cover_image: string; start_at: string; end_at: string;
-  venue_name: string; venue_address: string; venue_city: string; google_maps_url: string;
-  capacity: number; registration_deadline: string; price: number; currency: string;
-  registration_enabled: boolean; status: 'DRAFT' | 'PUBLISHED';
-};
-
-const initial: FormData = {
-  title: '', slug: '', short_description: '', description: '', category_id: '', cover_image: '',
-  start_at: '', end_at: '', venue_name: '', venue_address: '', venue_city: 'Bengaluru', google_maps_url: '',
-  capacity: 100, registration_deadline: '', price: 0, currency: 'INR', registration_enabled: true, status: 'DRAFT',
-};
-
-function slugify(value: string) {
-  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '').slice(0, 180);
-}
-
-function toIso(value: string) {
-  return value ? new Date(value).toISOString() : '';
-}
+type FormData = { title: string; slug: string; short_description: string; description: string; category_id: string; tag_ids: string[]; cover_image: string; start_at: string; end_at: string; venue_name: string; venue_address: string; venue_city: string; google_maps_url: string; capacity: number; registration_deadline: string; price: number; currency: string; registration_enabled: boolean; status: 'DRAFT' | 'PUBLISHED' };
+const initial: FormData = { title: '', slug: '', short_description: '', description: '', category_id: '', tag_ids: [], cover_image: '', start_at: '', end_at: '', venue_name: '', venue_address: '', venue_city: 'Bengaluru', google_maps_url: '', capacity: 100, registration_deadline: '', price: 0, currency: 'INR', registration_enabled: true, status: 'DRAFT' };
+const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '').slice(0, 180);
+const toIso = (value: string) => value ? new Date(value).toISOString() : '';
 
 export default function EventCreateWizardPage() {
-  const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [form, setForm] = useState<FormData>(initial);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
+  const router = useRouter(); const [step, setStep] = useState(0); const [form, setForm] = useState<FormData>(initial); const [categories, setCategories] = useState<Category[]>([]); const [categoriesLoading, setCategoriesLoading] = useState(true); const [uploading, setUploading] = useState(false); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [saved, setSaved] = useState(false); const update = <K extends keyof FormData>(field: K, value: FormData[K]) => setForm(current => ({ ...current, [field]: value }));
 
-  useEffect(() => {
-    let active = true;
-    void fetch('/api/categories', { cache: 'no-store' })
-      .then(async response => {
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || 'Unable to load categories.');
-        if (active) setCategories(result.categories ?? []);
-      })
-      .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Unable to load categories.'); })
-      .finally(() => { if (active) setCategoriesLoading(false); });
-    return () => { active = false; };
-  }, []);
+  useEffect(() => { let active = true; void fetch('/api/categories', { cache: 'no-store' }).then(async response => { const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || 'Unable to load categories.'); if (active) setCategories(result.categories ?? []); }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Unable to load categories.'); }).finally(() => { if (active) setCategoriesLoading(false); }); return () => { active = false; }; }, []);
+  const uploadImage = async (file: File) => { setError(''); setUploading(true); try { const body = new FormData(); body.append('file', file); const response = await fetch('/api/events/upload-image', { method: 'POST', body }); const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || 'Unable to upload image.'); update('cover_image', result.url); } catch (e) { setError(e instanceof Error ? e.message : 'Unable to upload image.'); } finally { setUploading(false); } };
+  const validateStep = () => { setError(''); if (step === 0) { if (!form.title.trim() || form.short_description.trim().length < 10 || form.description.trim().length < 20) { setError('Add a title, a short summary of at least 10 characters, and a description of at least 20 characters.'); return false; } if (!form.category_id) { setError('Select an event category.'); return false; } } if (step === 1 && !form.cover_image) { setError('Upload a cover image before continuing.'); return false; } if (step === 2) { if (!form.start_at || !form.end_at) { setError('Start and end date/time are required.'); return false; } if (new Date(form.end_at) <= new Date(form.start_at)) { setError('End time must be after start time.'); return false; } if (form.registration_deadline && new Date(form.registration_deadline) > new Date(form.start_at)) { setError('Registration deadline cannot be after the event starts.'); return false; } } if (step === 3 && (!form.venue_name.trim() || !form.venue_address.trim() || !form.venue_city.trim())) { setError('Venue name, address and city are required.'); return false; } if (step === 4 && (form.capacity < 1 || form.price < 0)) { setError('Capacity must be at least 1 and price cannot be negative.'); return false; } if (step === 5 && !form.registration_enabled) { setError('Registration must be enabled for a bookable event.'); return false; } return true; };
+  const submit = async (status: 'DRAFT' | 'PUBLISHED') => { setError(''); setSaving(true); try { if (!form.cover_image) throw new Error('A cover image is required.'); if (!form.category_id) throw new Error('A category is required.'); if (new Date(form.end_at) <= new Date(form.start_at)) throw new Error('End time must be after the event starts.'); const response = await fetch('/api/events/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, tag_ids: form.tag_ids, google_maps_url: form.google_maps_url || null, registration_deadline: form.registration_deadline ? toIso(form.registration_deadline) : null, start_at: toIso(form.start_at), end_at: toIso(form.end_at), status }) }); const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || 'Unable to create event.'); setSaved(true); setTimeout(() => router.push('/events'), 700); } catch (e) { setError(e instanceof Error ? e.message : 'Unable to create event.'); } finally { setSaving(false); } };
 
-  const update = <K extends keyof FormData>(field: K, value: FormData[K]) => {
-    setForm(current => ({ ...current, [field]: value }));
-  };
-
-  const uploadImage = async (file: File) => {
-    setError('');
-    setUploading(true);
-    try {
-      const body = new FormData();
-      body.append('file', file);
-      const response = await fetch('/api/events/upload-image', { method: 'POST', body });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Unable to upload image.');
-      update('cover_image', result.url);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to upload image.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const validateStep = () => {
-    setError('');
-    if (step === 0) {
-      if (!form.title.trim() || form.short_description.trim().length < 10 || form.description.trim().length < 20) {
-        setError('Add a title, a short summary of at least 10 characters, and a description of at least 20 characters.'); return false;
-      }
-      if (!form.category_id) { setError('Select an event category.'); return false; }
-    }
-    if (step === 1 && !form.cover_image) { setError('Upload a cover image before continuing.'); return false; }
-    if (step === 2) {
-      if (!form.start_at || !form.end_at) { setError('Start and end date/time are required.'); return false; }
-      if (new Date(form.end_at) <= new Date(form.start_at)) { setError('End time must be after start time.'); return false; }
-      if (form.registration_deadline && new Date(form.registration_deadline) > new Date(form.start_at)) { setError('Registration deadline cannot be after the event starts.'); return false; }
-    }
-    if (step === 3 && (!form.venue_name.trim() || !form.venue_address.trim() || !form.venue_city.trim())) {
-      setError('Venue name, address and city are required.'); return false;
-    }
-    if (step === 4 && (form.capacity < 1 || form.price < 0)) { setError('Capacity must be at least 1 and price cannot be negative.'); return false; }
-    if (step === 5 && !form.registration_enabled) { setError('Registration must be enabled for a bookable event.'); return false; }
-    return true;
-  };
-
-  const submit = async (status: 'DRAFT' | 'PUBLISHED') => {
-    setError(''); setSaving(true);
-    try {
-      if (!form.cover_image) throw new Error('A cover image is required.');
-      if (!form.category_id) throw new Error('An event category is required.');
-      if (new Date(form.end_at) <= new Date(form.start_at)) throw new Error('End time must be after start time.');
-      const response = await fetch('/api/events/create', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          category_id: form.category_id,
-          google_maps_url: form.google_maps_url || null,
-          registration_deadline: form.registration_deadline ? toIso(form.registration_deadline) : null,
-          start_at: toIso(form.start_at), end_at: toIso(form.end_at), status,
-        }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Unable to create event.');
-      setSaved(true);
-      setTimeout(() => router.push('/events'), 700);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to create event.');
-    } finally { setSaving(false); }
-  };
-
-  return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-12">
-      <div className="flex items-center justify-between gap-4">
-        <div><p className="text-xs font-bold text-purple-400 uppercase tracking-wider">Step {step + 1} of {steps.length}</p><h1 className="text-2xl font-extrabold text-white">Create Event</h1><p className="text-xs text-gray-400 mt-1">This form saves to the production event database. No mock data.</p></div>
-        <button onClick={() => router.push('/events')} className="text-xs font-bold text-gray-400 hover:text-white">Cancel</button>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
-        {steps.map((label, index) => <button key={label} type="button" onClick={() => index <= step && setStep(index)} className={`rounded-xl border p-2 text-[10px] font-bold ${index === step ? 'bg-purple-600 text-white border-purple-500' : index < step ? 'bg-emerald-950/30 text-emerald-400 border-emerald-700/40' : 'bg-gray-950 text-gray-600 border-gray-800'}`}>{index + 1}. {label}</button>)}
-      </div>
-
-      <div className="dashboard-card p-8 rounded-3xl border border-gray-800 space-y-6">
-        {step === 0 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><FileText className="w-5 h-5 text-purple-400"/>Basic Information</h2><input value={form.title} onChange={e => { update('title', e.target.value); if (!form.slug || form.slug === slugify(form.title)) update('slug', slugify(e.target.value)); }} placeholder="Event title" className="field"/><input value={form.slug} onChange={e => update('slug', slugify(e.target.value))} placeholder="event-url-slug" className="field font-mono"/><input value={form.short_description} onChange={e => update('short_description', e.target.value)} placeholder="Short summary" className="field"/><textarea rows={7} value={form.description} onChange={e => update('description', e.target.value)} placeholder="Full event description" className="field"/><label className="text-xs text-gray-400">Category<select value={form.category_id} onChange={e => update('category_id', e.target.value)} disabled={categoriesLoading} className="field mt-2"><option value="">{categoriesLoading ? 'Loading categories…' : 'Select a category'}</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label></section>}
-
-        {step === 1 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><ImageIcon className="w-5 h-5 text-purple-400"/>Media & Cover</h2><label className="block rounded-2xl border-2 border-dashed border-gray-700 hover:border-purple-500 p-8 text-center cursor-pointer"><Upload className="w-8 h-8 mx-auto text-gray-500 mb-3"/><span className="text-sm font-bold text-gray-300">{uploading ? 'Uploading…' : 'Upload cover image'}</span><p className="text-xs text-gray-500 mt-1">JPG, PNG or WebP · maximum 5 MB</p><input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void uploadImage(file); }}/></label>{form.cover_image && <div className="rounded-2xl overflow-hidden border border-gray-800"><img src={form.cover_image} alt="Cover preview" className="w-full max-h-80 object-cover"/></div>}</section>}
-
-        {step === 2 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Calendar className="w-5 h-5 text-purple-400"/>Schedule & Timing</h2><div className="grid sm:grid-cols-2 gap-4"><label className="text-xs text-gray-400">Start<input type="datetime-local" value={form.start_at} onChange={e => update('start_at', e.target.value)} className="field mt-2"/></label><label className="text-xs text-gray-400">End<input type="datetime-local" value={form.end_at} onChange={e => update('end_at', e.target.value)} className="field mt-2"/></label></div><label className="text-xs text-gray-400">Registration deadline<input type="datetime-local" value={form.registration_deadline} onChange={e => update('registration_deadline', e.target.value)} className="field mt-2"/></label></section>}
-
-        {step === 3 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><MapPin className="w-5 h-5 text-purple-400"/>Location & Venue</h2><input value={form.venue_name} onChange={e => update('venue_name', e.target.value)} placeholder="Venue name" className="field"/><input value={form.venue_address} onChange={e => update('venue_address', e.target.value)} placeholder="Full venue address" className="field"/><input value={form.venue_city} onChange={e => update('venue_city', e.target.value)} placeholder="City" className="field"/><input value={form.google_maps_url} onChange={e => update('google_maps_url', e.target.value)} placeholder="Google Maps URL" className="field"/></section>}
-
-        {step === 4 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Users className="w-5 h-5 text-purple-400"/>Capacity & Pricing</h2><label className="text-xs text-gray-400">Capacity<input type="number" min={1} value={form.capacity} onChange={e => update('capacity', Number(e.target.value))} className="field mt-2"/></label><label className="text-xs text-gray-400">Ticket price (INR)<input type="number" min={0} step="1" value={form.price} onChange={e => update('price', Number(e.target.value))} className="field mt-2"/></label></section>}
-
-        {step === 5 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Ticket className="w-5 h-5 text-purple-400"/>Registration</h2><label className="flex items-center gap-3 p-4 rounded-xl bg-gray-950 border border-gray-800 text-sm text-gray-200"><input type="checkbox" checked={form.registration_enabled} onChange={e => update('registration_enabled', e.target.checked)} className="w-4 h-4"/>Allow users to register/book this event</label><p className="text-xs text-gray-500">Ticket type is currently General, as defined by the current product scope.</p></section>}
-
-        {step === 6 && <section className="space-y-5"><h2 className="text-lg font-bold text-white flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-purple-400"/>Review & Publish</h2><div className="rounded-2xl bg-gray-950 border border-gray-800 p-5 space-y-2 text-sm"><p><b>Title:</b> {form.title || '—'}</p><p><b>Category:</b> {categories.find(category => category.id === form.category_id)?.name || '—'}</p><p><b>Slug:</b> /{form.slug || '—'}</p><p><b>Venue:</b> {form.venue_name || '—'}, {form.venue_city || '—'}</p><p><b>Capacity:</b> {form.capacity}</p><p><b>Price:</b> ₹{Number(form.price).toLocaleString('en-IN')}</p><p><b>Registration:</b> {form.registration_enabled ? 'Enabled' : 'Disabled'}</p><p><b>Cover:</b> {form.cover_image ? 'Uploaded' : 'Missing'}</p></div><div className="flex flex-col sm:flex-row gap-3"><button disabled={saving||saved} onClick={() => submit('DRAFT')} className="flex-1 py-3 rounded-xl border border-gray-700 text-white font-bold disabled:opacity-50">{saving ? 'Saving…' : 'Save Draft'}</button><button disabled={saving||saved} onClick={() => submit('PUBLISHED')} className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-bold disabled:opacity-50">{saving ? 'Publishing…' : 'Publish Event'}</button></div></section>}
-
-        {error && <p className="rounded-xl bg-red-950/30 border border-red-800/50 p-3 text-xs font-semibold text-red-300">{error}</p>}
-        {saved && <p className="rounded-xl bg-emerald-950/30 border border-emerald-800/50 p-3 text-xs font-semibold text-emerald-300">Event saved successfully. Redirecting…</p>}
-
-        {step < steps.length - 1 && <div className="flex justify-between pt-4 border-t border-gray-800"><button type="button" disabled={step===0} onClick={() => setStep(Math.max(0, step-1))} className="px-4 py-3 rounded-xl border border-gray-700 text-sm font-bold disabled:opacity-30"><ArrowLeft className="w-4 h-4 inline mr-2"/>Back</button><button type="button" onClick={() => validateStep() && setStep(step+1)} className="px-5 py-3 rounded-xl bg-purple-600 text-white text-sm font-bold">Next<ArrowRight className="w-4 h-4 inline ml-2"/></button></div>}
-      </div>
-
-      <style jsx>{`.field{width:100%;padding:.75rem 1rem;border-radius:.75rem;background:#111827;border:1px solid #1f2937;color:white;font-size:.75rem;outline:none}.field:focus{border-color:#8b5cf6}`}</style>
-    </div>
-  );
+  return <div className="max-w-5xl mx-auto space-y-8 pb-12">
+    <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-bold text-purple-400 uppercase tracking-wider">Step {step + 1} of {steps.length}</p><h1 className="text-2xl font-extrabold text-white">Create Event</h1><p className="text-xs text-gray-400 mt-1">This form saves to the production event database. No mock data.</p></div><button onClick={() => router.push('/events')} className="text-xs font-bold text-gray-400 hover:text-white">Cancel</button></div>
+    <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">{steps.map((label, index) => <button key={label} type="button" onClick={() => index <= step && setStep(index)} className={`rounded-xl border p-2 text-[10px] font-bold ${index === step ? 'bg-purple-600 text-white border-purple-500' : index < step ? 'bg-emerald-950/30 text-emerald-400 border-emerald-700/40' : 'bg-gray-950 text-gray-600 border-gray-800'}`}>{index + 1}. {label}</button>)}</div>
+    <div className="dashboard-card p-8 rounded-3xl border border-gray-800 space-y-6">
+      {step === 0 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><FileText className="w-5 h-5 text-purple-400"/>Basic Information</h2><input value={form.title} onChange={e => { update('title', e.target.value); if (!form.slug || form.slug === slugify(form.title)) update('slug', slugify(e.target.value)); }} placeholder="Event title" className="field"/><input value={form.slug} onChange={e => update('slug', slugify(e.target.value))} placeholder="event-url-slug" className="field font-mono"/><input value={form.short_description} onChange={e => update('short_description', e.target.value)} placeholder="Short summary" className="field"/><textarea rows={7} value={form.description} onChange={e => update('description', e.target.value)} placeholder="Full event description" className="field"/><label className="text-xs text-gray-400">Category<select value={form.category_id} onChange={e => update('category_id', e.target.value)} disabled={categoriesLoading} className="field mt-2"><option value="">{categoriesLoading ? 'Loading categories…' : 'Select a category'}</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><EventTagsPicker value={form.tag_ids} onChange={ids => update('tag_ids', ids)} /></section>}
+      {step === 1 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><ImageIcon className="w-5 h-5 text-purple-400"/>Media & Cover</h2><label className="block rounded-2xl border-2 border-dashed border-gray-700 hover:border-purple-500 p-8 text-center cursor-pointer"><Upload className="w-8 h-8 mx-auto text-gray-500 mb-3"/><span className="text-sm font-bold text-gray-300">{uploading ? 'Uploading…' : 'Upload cover image'}</span><p className="text-xs text-gray-500 mt-1">JPG, PNG or WebP · maximum 5 MB</p><input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void uploadImage(file); }}/></label>{form.cover_image && <div className="rounded-2xl overflow-hidden border border-gray-800"><img src={form.cover_image} alt="Cover preview" className="w-full max-h-80 object-cover"/></div>}</section>}
+      {step === 2 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Calendar className="w-5 h-5 text-purple-400"/>Schedule & Timing</h2><div className="grid sm:grid-cols-2 gap-4"><label className="text-xs text-gray-400">Start<input type="datetime-local" value={form.start_at} onChange={e => update('start_at', e.target.value)} className="field mt-2"/></label><label className="text-xs text-gray-400">End<input type="datetime-local" value={form.end_at} onChange={e => update('end_at', e.target.value)} className="field mt-2"/></label></div><label className="text-xs text-gray-400">Registration deadline<input type="datetime-local" value={form.registration_deadline} onChange={e => update('registration_deadline', e.target.value)} className="field mt-2"/></label></section>}
+      {step === 3 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><MapPin className="w-5 h-5 text-purple-400"/>Location & Venue</h2><input value={form.venue_name} onChange={e => update('venue_name', e.target.value)} placeholder="Venue name" className="field"/><input value={form.venue_address} onChange={e => update('venue_address', e.target.value)} placeholder="Full venue address" className="field"/><input value={form.venue_city} onChange={e => update('venue_city', e.target.value)} placeholder="City" className="field"/><input value={form.google_maps_url} onChange={e => update('google_maps_url', e.target.value)} placeholder="Google Maps URL" className="field"/></section>}
+      {step === 4 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Users className="w-5 h-5 text-purple-400"/>Capacity & Pricing</h2><label className="text-xs text-gray-400">Capacity<input type="number" min={1} value={form.capacity} onChange={e => update('capacity', Number(e.target.value))} className="field mt-2"/></label><label className="text-xs text-gray-400">Ticket price (INR)<input type="number" min={0} step="1" value={form.price} onChange={e => update('price', Number(e.target.value))} className="field mt-2"/></label></section>}
+      {step === 5 && <section className="space-y-4"><h2 className="text-lg font-bold text-white flex items-center gap-2"><Ticket className="w-5 h-5 text-purple-400"/>Registration</h2><label className="flex items-center gap-3 p-4 rounded-xl bg-gray-950 border border-gray-800 text-sm text-gray-200"><input type="checkbox" checked={form.registration_enabled} onChange={e => update('registration_enabled', e.target.checked)} className="w-4 h-4"/>Allow users to register/book this event</label><p className="text-xs text-gray-500">Ticket type is currently General, as defined by the current product scope.</p></section>}
+      {step === 6 && <section className="space-y-5"><h2 className="text-lg font-bold text-white flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-purple-400"/>Review & Publish</h2><div className="rounded-2xl bg-gray-950 border border-gray-800 p-5 space-y-2 text-sm"><p><b>Title:</b> {form.title || '—'}</p><p><b>Category:</b> {categories.find(category => category.id === form.category_id)?.name || '—'}</p><p><b>Tags:</b> {form.tag_ids.length || 'None'} selected</p><p><b>Slug:</b> /{form.slug || '—'}</p><p><b>Venue:</b> {form.venue_name || '—'}, {form.venue_city || '—'}</p><p><b>Capacity:</b> {form.capacity}</p><p><b>Price:</b> ₹{Number(form.price).toLocaleString('en-IN')}</p><p><b>Registration:</b> {form.registration_enabled ? 'Enabled' : 'Disabled'}</p><p><b>Cover:</b> {form.cover_image ? 'Uploaded' : 'Missing'}</p></div><div className="flex flex-col sm:flex-row gap-3"><button disabled={saving||saved} onClick={() => submit('DRAFT')} className="flex-1 py-3 rounded-xl border border-gray-700 text-white font-bold disabled:opacity-50">{saving ? 'Saving…' : 'Save Draft'}</button><button disabled={saving||saved} onClick={() => submit('PUBLISHED')} className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-bold disabled:opacity-50">{saving ? 'Publishing…' : 'Publish Event'}</button></div></section>}
+      {error && <p className="rounded-xl bg-red-950/30 border border-red-800/50 p-3 text-xs font-semibold text-red-300">{error}</p>}{saved && <p className="rounded-xl bg-emerald-950/30 border border-emerald-800/50 p-3 text-xs font-semibold text-emerald-300">Event saved successfully. Redirecting…</p>}
+      {step < steps.length - 1 && <div className="flex justify-between pt-4 border-t border-gray-800"><button type="button" disabled={step===0} onClick={() => setStep(Math.max(0, step-1))} className="px-4 py-3 rounded-xl border border-gray-700 text-sm font-bold disabled:opacity-30"><ArrowLeft className="w-4 h-4 inline mr-2"/>Back</button><button type="button" onClick={() => validateStep() && setStep(step+1)} className="px-5 py-3 rounded-xl bg-purple-600 text-white text-sm font-bold">Next<ArrowRight className="w-4 h-4 inline ml-2"/></button></div>}
+    </div><style jsx>{`.field{width:100%;padding:.75rem 1rem;border-radius:.75rem;background:#111827;border:1px solid #1f2937;color:white;font-size:.75rem;outline:none}.field:focus{border-color:#8b5cf6}`}</style>
+  </div>;
 }
