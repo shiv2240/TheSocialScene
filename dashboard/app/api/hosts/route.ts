@@ -7,7 +7,8 @@ export const runtime = 'nodejs';
 type Profile = { id: string; full_name: string; email: string | null; phone: string | null; status: string; created_at: string };
 type Mapping = { user_id: string; role_id: string };
 type Role = { id: string; name: string };
-type EventRow = { id: string; host_id: string; status: string; registered_count: number; price: number; created_at: string };
+type EventRow = { id: string; host_id: string; status: string };
+type RegistrationRow = { id: string; event_id: string; status: string; total_amount: number; currency: string };
 type Application = { profile_id: string | null; organization_name: string | null; city: string | null };
 
 export async function GET() {
@@ -31,7 +32,7 @@ export async function GET() {
 
     const [{ data: profiles, error: profilesError }, { data: events, error: eventsError }, { data: applications, error: applicationsError }] = await Promise.all([
       admin.from('profiles').select('id,full_name,email,phone,status,created_at').in('id', profileIds).order('created_at', { ascending: false }),
-      admin.from('events').select('id,host_id,status,registered_count,price,created_at').in('host_id', profileIds),
+      admin.from('events').select('id,host_id,status').in('host_id', profileIds),
       admin.from('host_applications').select('profile_id,organization_name,city').in('profile_id', profileIds),
     ]);
     if (profilesError) throw profilesError;
@@ -39,15 +40,28 @@ export async function GET() {
     if (applicationsError) throw applicationsError;
 
     const eventRows = (events ?? []) as EventRow[];
+    const eventIds = eventRows.map((event) => event.id);
+    const { data: registrations, error: registrationsError } = eventIds.length
+      ? await admin.from('registrations').select('id,event_id,status,total_amount,currency').in('event_id', eventIds)
+      : { data: [], error: null };
+    if (registrationsError) throw registrationsError;
+
     const appByProfile = new Map<string, Application>();
     for (const application of (applications ?? []) as Application[]) if (application.profile_id) appByProfile.set(application.profile_id, application);
+    const registrationsByEvent = new Map<string, RegistrationRow[]>();
+    for (const registration of (registrations ?? []) as RegistrationRow[]) {
+      const current = registrationsByEvent.get(registration.event_id) || [];
+      current.push(registration);
+      registrationsByEvent.set(registration.event_id, current);
+    }
 
     const hosts = ((profiles ?? []) as Profile[]).map((profile) => {
       const hostedEvents = eventRows.filter((event) => event.host_id === profile.id);
       const application = appByProfile.get(profile.id);
       const publishedEvents = hostedEvents.filter((event) => event.status === 'PUBLISHED').length;
-      const registered = hostedEvents.reduce((sum, event) => sum + (event.registered_count || 0), 0);
-      const grossValue = hostedEvents.reduce((sum, event) => sum + ((event.registered_count || 0) * Number(event.price || 0)), 0);
+      const hostRegistrations = hostedEvents.flatMap((event) => registrationsByEvent.get(event.id) || []);
+      const confirmedRegistrations = hostRegistrations.filter((registration) => registration.status === 'CONFIRMED');
+      const confirmedRevenue = confirmedRegistrations.reduce((sum, registration) => sum + Number(registration.total_amount || 0), 0);
       return {
         id: profile.id,
         name: profile.full_name,
@@ -58,8 +72,8 @@ export async function GET() {
         city: application?.city || null,
         events_count: hostedEvents.length,
         published_events: publishedEvents,
-        registrations: registered,
-        gross_value: grossValue,
+        registrations: confirmedRegistrations.length,
+        gross_value: confirmedRevenue,
         created_at: profile.created_at,
       };
     });
