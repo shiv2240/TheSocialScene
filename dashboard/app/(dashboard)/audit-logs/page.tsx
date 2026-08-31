@@ -1,54 +1,15 @@
 'use client';
 
-import React from 'react';
-import { FileText, Shield, User, Clock, CheckCircle } from 'lucide-react';
-import { AuditService } from '@backend/services/audit.service';
+import React, { useEffect, useState } from 'react';
+import { FileText, RefreshCw } from 'lucide-react';
+
+type AuditLog = { id: string; actor_user_id: string | null; action: string; entity_type: string; entity_id: string | null; metadata: Record<string, unknown> | null; created_at: string };
 
 export default function AuditLogsPage() {
-  const mockAuditLogs = [
-    AuditService.logActivity('EVENT_PUBLISHED', 'EVENT', 'evt-001', 'usr-super-admin', { slug: 'sunday-sunset-run' }),
-    AuditService.logActivity('CHECKIN_CREATED', 'TICKET', 'tkt-001', 'usr-staff-01', { ticket_code: 'TSS-2026-9B4A7C2E' }),
-    AuditService.logActivity('EVENT_CREATED', 'EVENT', 'evt-002', 'usr-host-01', { title: 'Indie Music Night' }),
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold text-white flex items-center gap-2">
-          <FileText className="w-6 h-6 text-purple-400" />
-          System Activity Audit Logs
-        </h1>
-        <p className="text-xs text-gray-400 mt-1">
-          Immutable trail of administrative operations, publishing decisions, role changes, and check-in scans.
-        </p>
-      </div>
-
-      <div className="dashboard-card rounded-2xl border border-gray-800 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-900/90 text-gray-400 text-[11px] uppercase tracking-wider border-b border-gray-800">
-                <th className="p-4">Action Key</th>
-                <th className="p-4">Entity Type</th>
-                <th className="p-4">Entity ID</th>
-                <th className="p-4">Actor</th>
-                <th className="p-4">Timestamp</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/60 text-xs">
-              {mockAuditLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-900/40 transition-colors font-mono">
-                  <td className="p-4 text-purple-300 font-bold">{log.action}</td>
-                  <td className="p-4 text-gray-300">{log.entity_type}</td>
-                  <td className="p-4 text-gray-400">{log.entity_id}</td>
-                  <td className="p-4 text-white font-bold">{log.actor_user_id}</td>
-                  <td className="p-4 text-gray-400">{new Date(log.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const load = async () => { setLoading(true); setError(null); try { const response = await fetch('/api/audit-logs?limit=200', { cache: 'no-store' }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Unable to load audit logs.'); setLogs(body.logs ?? []); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to load audit logs.'); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
+  return <div className="space-y-6"><div className="flex items-start justify-between gap-4"><div><h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><FileText className="w-6 h-6 text-purple-400" />System Activity Audit Logs</h1><p className="text-xs text-gray-400 mt-1">Live administrative activity from the production audit trail.</p></div><button onClick={() => void load()} disabled={loading} className="px-3 py-2 rounded-xl border border-white/10 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-50"><RefreshCw className={`w-4 h-4 inline mr-2 ${loading ? 'animate-spin' : ''}`} />Refresh</button></div>{error && <div className="rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-300">Unable to load audit logs: {error}</div>}<div className="dashboard-card rounded-2xl border border-gray-800 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-left border-collapse"><thead><tr className="bg-gray-900/90 text-gray-400 text-[11px] uppercase tracking-wider border-b border-gray-800"><th className="p-4">Action Key</th><th className="p-4">Entity Type</th><th className="p-4">Entity ID</th><th className="p-4">Actor</th><th className="p-4">Timestamp</th></tr></thead><tbody className="divide-y divide-gray-800/60 text-xs">{loading ? <tr><td colSpan={5} className="p-6 text-center text-gray-500">Loading production audit trail…</td></tr> : logs.length === 0 ? <tr><td colSpan={5} className="p-6 text-center text-gray-500">No audit activity recorded yet.</td></tr> : logs.map((log) => <tr key={log.id} className="hover:bg-gray-900/40 transition-colors"><td className="p-4 text-purple-300 font-bold font-mono">{log.action}</td><td className="p-4 text-gray-300">{log.entity_type}</td><td className="p-4 text-gray-400 font-mono">{log.entity_id || '—'}</td><td className="p-4 text-white font-mono">{log.actor_user_id || 'SYSTEM'}</td><td className="p-4 text-gray-400">{new Date(log.created_at).toLocaleString()}</td></tr>)}</tbody></table></div></div></div>;
 }
