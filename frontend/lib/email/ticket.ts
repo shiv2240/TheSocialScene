@@ -45,6 +45,14 @@ export async function sendTicketConfirmationEmail({ registrationId, ticketCode }
   if (error) throw error;
   if (!registration) throw new Error('Registration not found for ticket email.');
 
+  const { data: ticket, error: ticketError } = await supabase
+    .from('tickets')
+    .select('id, ticket_code, qr_payload')
+    .eq('registration_id', registrationId)
+    .maybeSingle();
+  if (ticketError) throw ticketError;
+  if (!ticket) throw new Error('Ticket not found for registration.');
+
   const profile = Array.isArray(registration.profiles) ? registration.profiles[0] : registration.profiles;
   const event = Array.isArray(registration.events) ? registration.events[0] : registration.events;
   const recipient = typeof profile?.email === 'string' ? profile.email.trim().toLowerCase() : '';
@@ -62,11 +70,14 @@ export async function sendTicketConfirmationEmail({ registrationId, ticketCode }
   const venueText = [venue?.name, venue?.address, venue?.city].filter(Boolean).join(', ') || 'Venue details will be announced';
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://www.thesocialscene.club').replace(/\/$/, '');
   const ticketUrl = `${appUrl}/tickets`;
+  const qrPayload = String(ticket.qr_payload || ticketCode);
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=420x420&margin=16&data=${encodeURIComponent(qrPayload)}`;
+  const effectiveTicketId = String(ticket.ticket_code || ticketCode);
   const safeName = escapeHtml(profile?.full_name || 'The Social Scene Member');
   const safeEventTitle = escapeHtml(eventTitle);
   const safeEventDate = escapeHtml(eventDate);
   const safeVenue = escapeHtml(venueText);
-  const safeTicketCode = escapeHtml(ticketCode);
+  const safeTicketId = escapeHtml(effectiveTicketId);
 
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -82,8 +93,9 @@ export async function sendTicketConfirmationEmail({ registrationId, ticketCode }
       tags: [
         { name: 'category', value: 'ticket-confirmation' },
         { name: 'registration_id', value: registrationId },
+        { name: 'ticket_id', value: effectiveTicketId },
       ],
-      html: `<!doctype html><html><body style="margin:0;background:#090a0f;font-family:Arial,sans-serif;color:#f5f5f5;padding:32px"><div style="max-width:620px;margin:auto;background:#15151d;border:1px solid #2a2a36;border-radius:20px;overflow:hidden"><div style="padding:28px 30px;background:#1c1827"><div style="font-size:13px;font-weight:700;letter-spacing:2px;color:#ff8b3d">THE SOCIAL SCENE</div><h1 style="margin:10px 0 0;font-size:28px">Your ticket is confirmed</h1></div><div style="padding:30px"><p style="font-size:15px">Hi ${safeName},</p><p style="color:#b8b8c5;line-height:1.6">Your registration has been confirmed. Your ticket is also available in your account.</p><div style="margin:24px 0;padding:22px;border-radius:16px;background:#0d0e15;border:1px solid #30303d"><div style="font-size:12px;color:#8f8f9f;text-transform:uppercase;letter-spacing:1px">Event</div><div style="font-size:22px;font-weight:800;margin-top:6px">${safeEventTitle}</div><div style="margin-top:16px;color:#c8c8d0">${safeEventDate}</div><div style="margin-top:8px;color:#c8c8d0">${safeVenue}</div><div style="margin-top:18px;font-family:monospace;font-size:14px;color:#ffad66">Ticket: ${safeTicketCode}</div></div><a href="${ticketUrl}" style="display:inline-block;padding:13px 20px;background:#ff6a3d;color:#fff;text-decoration:none;border-radius:12px;font-weight:700">View My Ticket</a><p style="margin-top:24px;color:#8f8f9f;font-size:12px;line-height:1.6">Show the digital ticket from your account at check-in. Keep this email for your records.</p></div></div></body></html>`,
+      html: `<!doctype html><html><body style="margin:0;background:#090a0f;font-family:Arial,sans-serif;color:#f5f5f5;padding:32px"><div style="max-width:620px;margin:auto;background:#15151d;border:1px solid #2a2a36;border-radius:20px;overflow:hidden"><div style="padding:28px 30px;background:#1c1827"><div style="font-size:13px;font-weight:700;letter-spacing:2px;color:#ff8b3d">THE SOCIAL SCENE</div><h1 style="margin:10px 0 0;font-size:28px">Your ticket is confirmed</h1></div><div style="padding:30px"><p style="font-size:15px">Hi ${safeName},</p><p style="color:#b8b8c5;line-height:1.6">Your registration has been confirmed. Keep this email as a backup for event entry.</p><div style="margin:24px 0;padding:22px;border-radius:16px;background:#0d0e15;border:1px solid #30303d"><div style="font-size:12px;color:#8f8f9f;text-transform:uppercase;letter-spacing:1px">Event</div><div style="font-size:22px;font-weight:800;margin-top:6px">${safeEventTitle}</div><div style="margin-top:16px;color:#c8c8d0">${safeEventDate}</div><div style="margin-top:8px;color:#c8c8d0">${safeVenue}</div><div style="margin-top:18px;font-family:monospace;font-size:16px;font-weight:800;color:#ffad66">Ticket ID: ${safeTicketId}</div></div><div style="margin:24px 0;text-align:center;padding:22px;background:#fff;border-radius:18px"><img src="${qrUrl}" alt="Ticket QR code" width="280" height="280" style="display:block;width:280px;height:280px;margin:0 auto;max-width:100%" /><div style="margin-top:14px;color:#111;font-family:monospace;font-size:14px;font-weight:800">${safeTicketId}</div></div><a href="${ticketUrl}" style="display:inline-block;padding:13px 20px;background:#ff6a3d;color:#fff;text-decoration:none;border-radius:12px;font-weight:700">View My Ticket</a><p style="margin-top:24px;color:#8f8f9f;font-size:12px;line-height:1.6">Present the QR code at check-in. If scanning is unavailable, provide your Ticket ID to the event team for manual verification.</p></div></div></body></html>`,
     }),
     cache: 'no-store',
   });
