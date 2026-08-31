@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Search, User, Ticket, CreditCard, Menu, X, Compass, LogOut, Sparkles } from 'lucide-react';
+import { Search, User, Ticket, CreditCard, Menu, X, Compass, LogOut, Sparkles, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface CurrentProfile { full_name?: string | null; email?: string | null; }
 
 export function Navbar() {
   const router = useRouter();
+  const menuRef = useRef<HTMLDivElement>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [profile, setProfile] = useState<CurrentProfile | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -35,6 +37,14 @@ export function Navbar() {
     };
   }, [loadSession]);
 
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setAccountMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
   const displayName = profile?.full_name?.trim() || '';
   const greeting = displayName ? `Hi, ${displayName.split(/\s+/)[0]}` : 'My Account';
 
@@ -42,11 +52,13 @@ export function Navbar() {
     setSigningOut(true);
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      setSignedIn(false); setProfile(null);
+      setSignedIn(false); setProfile(null); setAccountMenuOpen(false);
       window.dispatchEvent(new Event('tss:profile-updated'));
       router.replace('/'); router.refresh();
     } finally { setSigningOut(false); }
   };
+
+  const closeMenus = () => { setAccountMenuOpen(false); setMobileMenuOpen(false); };
 
   return (
     <header className="sticky top-0 z-50 glass-nav">
@@ -66,18 +78,36 @@ export function Navbar() {
 
           <div className="hidden md:flex items-center gap-3">
             <Link href="/events" className="p-2.5 rounded-full bg-[#231f2b] hover:bg-[#2e2938] text-gray-300 hover:text-white transition-all border border-white/10" title="Search Events"><Search className="w-4 h-4" /></Link>
-            {signedIn && <Link href="/payments" className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#231f2b] hover:bg-[#2e2938] text-xs font-bold text-gray-200 border border-white/10 hover:border-[#c85a3c]/50 transition-all"><CreditCard className="w-4 h-4 text-[#c85a3c]" />My Payments</Link>}
-            <Link href="/tickets" className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#231f2b] hover:bg-[#2e2938] text-xs font-bold text-gray-200 border border-white/10 hover:border-[#c85a3c]/50 transition-all"><Ticket className="w-4 h-4 text-[#c85a3c]" />My Tickets</Link>
-            {signedIn ? <><Link href="/profile" className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#231f2b] text-xs font-bold text-gray-200 border border-white/10"><User className="w-4 h-4 text-[#c85a3c]" />{greeting}</Link><button onClick={signOut} disabled={signingOut} className="flex items-center gap-2 px-4 py-2.5 rounded-2xl gradient-terracotta text-xs font-extrabold text-white disabled:opacity-60"><LogOut className="w-4 h-4" />{signingOut ? 'Signing out...' : 'Sign Out'}</button></> : <Link href="/login" className="flex items-center gap-2 px-5 py-2.5 rounded-2xl gradient-terracotta text-xs font-extrabold text-white shadow-lg shadow-[#c85a3c]/30"><User className="w-4 h-4" />Sign In</Link>}
+            {signedIn ? (
+              <div ref={menuRef} className="relative">
+                <button onClick={() => setAccountMenuOpen(!accountMenuOpen)} aria-expanded={accountMenuOpen} className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#231f2b] hover:bg-[#2e2938] text-xs font-bold text-gray-200 border border-white/10 hover:border-[#c85a3c]/50 transition-all">
+                  <span className="w-7 h-7 rounded-full bg-[#c85a3c]/20 border border-[#c85a3c]/40 flex items-center justify-center"><User className="w-4 h-4 text-[#c85a3c]" /></span>
+                  <span>{greeting}</span><ChevronDown className={`w-4 h-4 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {accountMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-64 rounded-2xl bg-[#18151f] border border-white/10 shadow-2xl shadow-black/40 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-white/10"><p className="text-sm font-bold text-white truncate">{displayName || 'My Account'}</p>{profile?.email && <p className="text-xs text-gray-400 truncate mt-0.5">{profile.email}</p>}</div>
+                    <div className="p-2">
+                      <Link href="/tickets" onClick={closeMenus} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5 hover:text-white"><Ticket className="w-4 h-4 text-[#c85a3c]" />My Bookings</Link>
+                      <Link href="/payments" onClick={closeMenus} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5 hover:text-white"><CreditCard className="w-4 h-4 text-[#c85a3c]" />My Payments</Link>
+                      <Link href="/profile" onClick={closeMenus} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5 hover:text-white"><User className="w-4 h-4 text-[#c85a3c]" />My Account</Link>
+                    </div>
+                    <div className="border-t border-white/10 p-2"><button onClick={signOut} disabled={signingOut} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-300 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-60"><LogOut className="w-4 h-4" />{signingOut ? 'Signing out...' : 'Sign Out'}</button></div>
+                  </div>
+                )}
+              </div>
+            ) : <Link href="/login" className="flex items-center gap-2 px-5 py-2.5 rounded-2xl gradient-terracotta text-xs font-extrabold text-white shadow-lg shadow-[#c85a3c]/30"><User className="w-4 h-4" />Sign In</Link>}
           </div>
 
           <div className="md:hidden flex items-center gap-3">
-            {signedIn ? <Link href="/profile" className="px-3 py-1.5 rounded-xl gradient-terracotta text-xs font-extrabold text-white">{greeting}</Link> : <Link href="/login" className="px-3 py-1.5 rounded-xl gradient-terracotta text-xs font-extrabold text-white">Sign In</Link>}
+            {signedIn ? <button onClick={() => setAccountMenuOpen(!accountMenuOpen)} className="px-3 py-1.5 rounded-xl gradient-terracotta text-xs font-extrabold text-white flex items-center gap-1.5">{greeting}<ChevronDown className={`w-3.5 h-3.5 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} /></button> : <Link href="/login" className="px-3 py-1.5 rounded-xl gradient-terracotta text-xs font-extrabold text-white">Sign In</Link>}
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 rounded-xl bg-[#231f2b] text-gray-300 hover:text-white">{mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}</button>
           </div>
         </div>
 
-        {mobileMenuOpen && <div className="md:hidden py-4 border-t border-white/10 space-y-3"><Link href="/events" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Discover Events & Treks</Link><Link href="/categories" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Categories</Link><Link href="/become-a-host" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-extrabold text-[#e59838] hover:bg-[#231f2b]">Become a Host</Link>{signedIn && <Link href="/payments" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Payments</Link>}<Link href="/tickets" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Tickets</Link>{signedIn && <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Profile</Link>}{signedIn && <button onClick={signOut} className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Sign Out</button>}</div>}
+        {accountMenuOpen && signedIn && <div className="md:hidden absolute right-4 top-16 w-64 rounded-2xl bg-[#18151f] border border-white/10 shadow-2xl shadow-black/40 overflow-hidden z-50"><div className="px-4 py-3 border-b border-white/10"><p className="text-sm font-bold text-white truncate">{displayName || 'My Account'}</p>{profile?.email && <p className="text-xs text-gray-400 truncate mt-0.5">{profile.email}</p>}</div><div className="p-2"><Link href="/tickets" onClick={closeMenus} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5"> <Ticket className="w-4 h-4 text-[#c85a3c]" />My Bookings</Link><Link href="/payments" onClick={closeMenus} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5"><CreditCard className="w-4 h-4 text-[#c85a3c]" />My Payments</Link><Link href="/profile" onClick={closeMenus} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-200 hover:bg-white/5"><User className="w-4 h-4 text-[#c85a3c]" />My Account</Link></div><div className="border-t border-white/10 p-2"><button onClick={signOut} disabled={signingOut} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-300 hover:bg-red-500/10 hover:text-red-300"><LogOut className="w-4 h-4" />{signingOut ? 'Signing out...' : 'Sign Out'}</button></div></div>}
+
+        {mobileMenuOpen && <div className="md:hidden py-4 border-t border-white/10 space-y-3"><Link href="/events" onClick={closeMenus} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Discover Events & Treks</Link><Link href="/categories" onClick={closeMenus} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Categories</Link><Link href="/become-a-host" onClick={closeMenus} className="block px-4 py-2.5 rounded-xl text-sm font-extrabold text-[#e59838] hover:bg-[#231f2b]">Become a Host</Link></div>}
       </div>
     </header>
   );
