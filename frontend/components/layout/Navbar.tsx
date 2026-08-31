@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Search, User, Ticket, Menu, X, Compass, LogOut, Sparkles } from 'lucide-react';
+import { Search, User, Ticket, CreditCard, Menu, X, Compass, LogOut, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface CurrentProfile { full_name?: string | null; email?: string | null; }
@@ -64,8 +64,9 @@ export function Navbar() {
             <Link href="/become-a-host" className="text-sm font-extrabold text-[#e59838] hover:text-white transition-colors flex items-center gap-1.5"><Sparkles className="w-4 h-4" />Become a Host</Link>
           </nav>
 
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-3">
             <Link href="/events" className="p-2.5 rounded-full bg-[#231f2b] hover:bg-[#2e2938] text-gray-300 hover:text-white transition-all border border-white/10" title="Search Events"><Search className="w-4 h-4" /></Link>
+            {signedIn && <Link href="/payments" className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#231f2b] hover:bg-[#2e2938] text-xs font-bold text-gray-200 border border-white/10 hover:border-[#c85a3c]/50 transition-all"><CreditCard className="w-4 h-4 text-[#c85a3c]" />My Payments</Link>}
             <Link href="/tickets" className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#231f2b] hover:bg-[#2e2938] text-xs font-bold text-gray-200 border border-white/10 hover:border-[#c85a3c]/50 transition-all"><Ticket className="w-4 h-4 text-[#c85a3c]" />My Tickets</Link>
             {signedIn ? <><Link href="/profile" className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#231f2b] text-xs font-bold text-gray-200 border border-white/10"><User className="w-4 h-4 text-[#c85a3c]" />{greeting}</Link><button onClick={signOut} disabled={signingOut} className="flex items-center gap-2 px-4 py-2.5 rounded-2xl gradient-terracotta text-xs font-extrabold text-white disabled:opacity-60"><LogOut className="w-4 h-4" />{signingOut ? 'Signing out...' : 'Sign Out'}</button></> : <Link href="/login" className="flex items-center gap-2 px-5 py-2.5 rounded-2xl gradient-terracotta text-xs font-extrabold text-white shadow-lg shadow-[#c85a3c]/30"><User className="w-4 h-4" />Sign In</Link>}
           </div>
@@ -76,7 +77,7 @@ export function Navbar() {
           </div>
         </div>
 
-        {mobileMenuOpen && <div className="md:hidden py-4 border-t border-white/10 space-y-3"><Link href="/events" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Discover Events & Treks</Link><Link href="/categories" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Categories</Link><Link href="/become-a-host" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-extrabold text-[#e59838] hover:bg-[#231f2b]">Become a Host</Link><Link href="/tickets" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Tickets</Link>{signedIn && <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Profile</Link>}{signedIn && <button onClick={signOut} className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Sign Out</button>}</div>}
+        {mobileMenuOpen && <div className="md:hidden py-4 border-t border-white/10 space-y-3"><Link href="/events" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Discover Events & Treks</Link><Link href="/categories" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Categories</Link><Link href="/become-a-host" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-extrabold text-[#e59838] hover:bg-[#231f2b]">Become a Host</Link>{signedIn && <Link href="/payments" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Payments</Link>}<Link href="/tickets" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">My Tickets</Link>{signedIn && <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Profile</Link>}{signedIn && <button onClick={signOut} className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-200 hover:bg-[#231f2b]">Sign Out</button>}</div>}
       </div>
     </header>
   );
