@@ -3,7 +3,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth';
+import { GoogleAuthProvider, isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink, signInWithPopup } from 'firebase/auth';
 import { Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { getFirebaseAuth } from '@/lib/firebase/client';
 import { Navbar } from '@/components/layout/Navbar';
@@ -20,6 +20,7 @@ function LoginContent() {
   const next = safeNext(searchParams.get('next'));
   const [email, setEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [error, setError] = useState('');
 
@@ -89,6 +90,21 @@ function LoginContent() {
     }
   };
 
+  const handleGoogle = async () => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(getFirebaseAuth(), provider);
+      await establishSession();
+      await continueAfterAuth();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#090a0f] text-gray-100 flex flex-col">
       <Navbar />
@@ -100,7 +116,7 @@ function LoginContent() {
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-2xl font-extrabold text-white">Join The Social Scene</h1>
-            <p className="text-xs text-gray-400">Sign in securely with your email. No mobile OTP required.</p>
+            <p className="text-xs text-gray-400">Sign in with email or Google. Mobile OTP is temporarily disabled.</p>
           </div>
 
           <form onSubmit={handleEmailSubmit} className="space-y-4">
@@ -108,17 +124,23 @@ function LoginContent() {
               <label htmlFor="email" className="text-xs font-semibold text-gray-300 uppercase tracking-wider block">Email address</label>
               <input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3.5 rounded-xl bg-gray-900/90 border border-gray-700/80 text-sm font-semibold text-white placeholder-gray-600 focus:outline-none focus:border-purple-500" required />
             </div>
-            <button type="submit" disabled={emailLoading || !email.trim()} className="w-full py-4 rounded-xl gradient-bg text-white font-bold text-sm shadow-xl shadow-purple-500/25 hover:shadow-purple-500/40 transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="submit" disabled={emailLoading || googleLoading || !email.trim()} className="w-full py-4 rounded-xl gradient-bg text-white font-bold text-sm shadow-xl shadow-purple-500/25 hover:shadow-purple-500/40 transition-all flex items-center justify-center gap-2 disabled:opacity-60">
               <Mail className="w-4 h-4" />
               {emailLoading ? 'Sending login link...' : 'Email me a login link'}
             </button>
             {emailSent && <p className="text-xs text-emerald-400 text-center">Login link sent. Check your inbox.</p>}
           </form>
 
+          <div className="relative py-2"><div className="border-t border-gray-800" /><span className="absolute left-1/2 -translate-x-1/2 -top-2 px-3 bg-[#12131a] text-[10px] uppercase tracking-widest text-gray-600">or</span></div>
+
+          <button type="button" onClick={handleGoogle} disabled={emailLoading || googleLoading} className="w-full py-3.5 rounded-xl border border-gray-700 bg-gray-900/70 text-white font-bold text-sm hover:bg-gray-800 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+            {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
+          </button>
+
           {error && <p className="text-xs text-red-400 text-center">{error}</p>}
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500 pt-4 border-t border-gray-800">
             <ShieldCheck className="w-4 h-4 text-purple-400" />
-            <span>Passwordless email authentication powered by Firebase</span>
+            <span>Email/Google authentication powered by Firebase</span>
           </div>
           <div className="text-center pt-1"><Link href="/" className="text-xs font-semibold text-gray-500 hover:text-white transition-colors">Back to home</Link></div>
         </div>
