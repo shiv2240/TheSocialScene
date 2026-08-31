@@ -12,13 +12,14 @@ type EventRow = {
 };
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>'\"]/g, (character) => ({
+  const entities: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     "'": '&#39;',
-    '\"': '&quot;',
-  })[character] ?? character);
+    '"': '&quot;',
+  };
+  return value.replace(/[&<>\'"]/g, (character) => entities[character] ?? character);
 }
 
 function getVenue(venue: EventRow['venue']) {
