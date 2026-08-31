@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { getCurrentFirebaseUser } from '@/lib/firebase/session';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { sendTicketConfirmationEmail } from '@/lib/email/ticket';
 
 export const runtime = 'nodejs';
 
@@ -89,7 +90,10 @@ export async function POST(request: NextRequest) {
     if (orderUpdateError) throw orderUpdateError;
     const { error: paymentError } = await supabase.from('payments').upsert({ order_id: order.id, provider: 'RAZORPAY', provider_payment_id: razorpayPaymentId, razorpay_order_id: razorpayOrderId, razorpay_signature: razorpaySignature, amount: order.amount, status: 'CAPTURED', raw_response: payment }, { onConflict: 'provider_payment_id' });
     if (paymentError) throw paymentError;
-    return NextResponse.json({ success: true, ticketCode: confirmation.ticket_code, registrationId });
+
+    const ticketCode = confirmation.ticket_code as string;
+    await sendTicketConfirmationEmail({ registrationId, ticketCode }).catch((error: unknown) => console.error('[TICKET EMAIL] Paid registration email failed:', error));
+    return NextResponse.json({ success: true, ticketCode, registrationId });
   } catch (error) {
     console.error('Razorpay verify error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Payment verification failed.' }, { status: 500 });
