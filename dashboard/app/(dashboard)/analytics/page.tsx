@@ -1,52 +1,35 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { BarChart3, TrendingUp, Users, CreditCard, Calendar, RefreshCw } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, CreditCard, Calendar, RefreshCw, Radio } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
 
 type Point = { date: string; revenue: number; registrations: number; checkins: number };
 type AnalyticsResponse = { kpis: { totalEvents: number; upcomingEvents: number; totalRegistrations: number; totalRevenue: number; todayRegistrations: number; todayCheckins: number; activeUsers: number }; daily: Point[]; generatedAt: string };
+type RealtimeResponse = { configured?: boolean; provider?: string; activeUsers?: number; pages?: Array<{ page: string; activeUsers: number }>; generatedAt?: string; error?: string };
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsResponse | null>(null);
+  const [realtime, setRealtime] = useState<RealtimeResponse | null>(null);
+  const [provider, setProvider] = useState<'google' | 'firebase'>('google');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trafficLoading, setTrafficLoading] = useState(false);
 
-  const load = async () => {
-    setLoading(true); setError(null);
-    try {
-      const response = await fetch('/api/analytics', { cache: 'no-store' });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Unable to load analytics.');
-      setData(body as AnalyticsResponse);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to load analytics.'); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { void load(); }, []);
+  const load = async () => { setLoading(true); setError(null); try { const response = await fetch('/api/analytics', { cache: 'no-store' }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Unable to load analytics.'); setData(body as AnalyticsResponse); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to load analytics.'); } finally { setLoading(false); } };
+  const loadRealtime = async (selectedProvider: 'google' | 'firebase') => { setTrafficLoading(true); try { const response = await fetch(`/api/analytics/realtime?provider=${selectedProvider}`, { cache: 'no-store' }); const body = await response.json() as RealtimeResponse; setRealtime(response.ok ? body : { error: body.error || 'Unable to load realtime analytics.' }); } catch (err) { setRealtime({ error: err instanceof Error ? err.message : 'Unable to load realtime analytics.' }); } finally { setTrafficLoading(false); } };
+  useEffect(() => { void load(); void loadRealtime('google'); }, []);
   const chartData = data?.daily ?? [];
 
-  return (
-    <div className="space-y-8">
-      <div className="flex items-start justify-between gap-4">
-        <div><h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><BarChart3 className="w-6 h-6 text-[#c85a3c]" />Performance & Growth Analytics</h1><p className="text-xs text-gray-400 mt-1">Live production metrics calculated from Supabase.</p></div>
-        <button onClick={() => void load()} disabled={loading} className="px-3 py-2 rounded-xl border border-white/10 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-50"><RefreshCw className={`w-4 h-4 inline mr-2 ${loading ? 'animate-spin' : ''}`} />Refresh</button>
-      </div>
-      {error && <div className="rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-300">Unable to load live analytics: {error}</div>}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Kpi title="Revenue" value={formatCurrency(data?.kpis.totalRevenue ?? 0)} icon={<CreditCard className="w-4 h-4" />} />
-        <Kpi title="Registrations" value={String(data?.kpis.totalRegistrations ?? 0)} icon={<Users className="w-4 h-4" />} />
-        <Kpi title="Upcoming Events" value={String(data?.kpis.upcomingEvents ?? 0)} icon={<Calendar className="w-4 h-4" />} />
-        <Kpi title="Today's Check-ins" value={String(data?.kpis.todayCheckins ?? 0)} icon={<TrendingUp className="w-4 h-4" />} />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Chart title="Revenue — Last 30 Days"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" fontSize={10} /><YAxis fontSize={10} /><Tooltip /><Area type="monotone" dataKey="revenue" /></AreaChart></ResponsiveContainer></Chart>
-        <Chart title="Registrations & Check-ins — Last 30 Days"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" fontSize={10} /><YAxis fontSize={10} /><Tooltip /><Bar dataKey="registrations" radius={[6,6,0,0]} /><Bar dataKey="checkins" radius={[6,6,0,0]} /></BarChart></ResponsiveContainer></Chart>
-      </div>
-      <p className="text-[11px] text-gray-500">{data?.generatedAt ? `Last updated ${new Date(data.generatedAt).toLocaleString()}` : 'Loading production data…'}</p>
-    </div>
-  );
+  return <div className="space-y-8">
+    <div className="flex items-start justify-between gap-4"><div><h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><BarChart3 className="w-6 h-6 text-[#c85a3c]" />Performance & Growth Analytics</h1><p className="text-xs text-gray-400 mt-1">Live production metrics calculated from Supabase.</p></div><button onClick={() => void load()} disabled={loading} className="px-3 py-2 rounded-xl border border-white/10 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-50"><RefreshCw className={`w-4 h-4 inline mr-2 ${loading ? 'animate-spin' : ''}`} />Refresh</button></div>
+    {error && <div className="rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-300">Unable to load live analytics: {error}</div>}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4"><Kpi title="Revenue" value={formatCurrency(data?.kpis.totalRevenue ?? 0)} icon={<CreditCard className="w-4 h-4" />} /><Kpi title="Registrations" value={String(data?.kpis.totalRegistrations ?? 0)} icon={<Users className="w-4 h-4" />} /><Kpi title="Upcoming Events" value={String(data?.kpis.upcomingEvents ?? 0)} icon={<Calendar className="w-4 h-4" />} /><Kpi title="Today's Check-ins" value={String(data?.kpis.todayCheckins ?? 0)} icon={<TrendingUp className="w-4 h-4" />} /></div>
+    <div className="dashboard-card p-6 rounded-3xl border border-white/10 space-y-5"><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div><h2 className="text-base font-bold text-white flex items-center gap-2"><Radio className="w-4 h-4 text-emerald-400" />Website Traffic</h2><p className="text-xs text-gray-400 mt-1">Realtime active users from your analytics property.</p></div><div className="flex items-center gap-2 p-1 rounded-xl bg-gray-900 border border-gray-800"><button onClick={() => { setProvider('google'); void loadRealtime('google'); }} className={`px-3 py-2 rounded-lg text-xs font-bold ${provider === 'google' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}>Google Analytics</button><button onClick={() => { setProvider('firebase'); void loadRealtime('firebase'); }} className={`px-3 py-2 rounded-lg text-xs font-bold ${provider === 'firebase' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}>Firebase</button></div></div>{trafficLoading ? <p className="text-sm text-gray-500">Loading realtime traffic…</p> : realtime?.error ? <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-sm text-amber-300">{realtime.error}</div> : <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="rounded-2xl bg-gray-900/80 border border-gray-800 p-5"><p className="text-xs text-gray-400">Realtime users</p><p className="text-3xl font-extrabold text-white mt-2">{realtime?.activeUsers ?? 0}</p><p className="text-[11px] text-emerald-400 mt-1">{provider === 'google' ? 'Google Analytics 4' : 'Firebase / linked GA4 property'}</p></div><div className="md:col-span-2 rounded-2xl bg-gray-900/80 border border-gray-800 p-5"><p className="text-xs text-gray-400 mb-3">Active screens / pages</p><div className="space-y-2">{(realtime?.pages ?? []).slice(0, 6).map((page) => <div key={page.page} className="flex justify-between text-xs"><span className="text-gray-300 truncate pr-4">{page.page}</span><span className="text-white font-bold">{page.activeUsers}</span></div>)}{(realtime?.pages ?? []).length === 0 && <p className="text-xs text-gray-500">No realtime page activity available.</p>}</div></div></div>}</div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8"><Chart title="Revenue — Last 30 Days"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" fontSize={10} /><YAxis fontSize={10} /><Tooltip /><Area type="monotone" dataKey="revenue" /></AreaChart></ResponsiveContainer></Chart><Chart title="Registrations & Check-ins — Last 30 Days"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" fontSize={10} /><YAxis fontSize={10} /><Tooltip /><Bar dataKey="registrations" radius={[6,6,0,0]} /><Bar dataKey="checkins" radius={[6,6,0,0]} /></BarChart></ResponsiveContainer></Chart></div>
+    <p className="text-[11px] text-gray-500">{data?.generatedAt ? `Last updated ${new Date(data.generatedAt).toLocaleString()}` : 'Loading production data…'}</p>
+  </div>;
 }
 function Kpi({ title, value, icon }: { title: string; value: string; icon: React.ReactNode }) { return <div className="dashboard-card p-5 rounded-2xl border border-gray-800"><div className="flex justify-between text-gray-400 text-xs"><span>{title}</span><span className="p-2 rounded-xl bg-purple-950/80 text-purple-400">{icon}</span></div><div className="text-2xl font-extrabold text-white mt-3">{value}</div></div>; }
 function Chart({ title, children }: { title: string; children: React.ReactNode }) { return <div className="dashboard-card p-6 rounded-3xl border border-white/10"><h2 className="text-base font-bold text-white mb-4">{title}</h2><div className="h-72 w-full">{children}</div></div>; }
