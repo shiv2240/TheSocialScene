@@ -133,12 +133,48 @@ function LoginContent() {
 
           <div className="relative py-1"><div className="border-t border-white/10" /><span className="absolute left-1/2 -translate-x-1/2 -top-2 px-3 bg-[#16151c] text-[10px] font-sans-clean font-extrabold text-[#f4ebd9]/40 uppercase tracking-wider">or</span></div>
 
-          <button type="button" onClick={handleGoogle} disabled={emailLoading || googleLoading} className="w-full py-3 rounded-full border border-white/20 bg-white/5 text-white font-sans-clean font-extrabold text-xs tracking-wider uppercase hover:bg-white/15 transition-colors disabled:opacity-60">
-            {googleLoading ? 'Connecting to Google...' : '[ Continue with Google ]'}
+          <button type="button" onClick={handleGoogle} disabled={emailLoading || googleLoading} className="w-full py-3 rounded-full border border-white/20 bg-white/5 text-white font-sans-clean font-extrabold text-xs tracking-wider uppercase hover:bg-white/15 transition-colors disabled:opacity-60 flex items-center justify-center gap-2.5">
+            {googleLoading ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                </svg>
+                Connecting...
+              </>
+            ) : (
+              <>
+                {/* Official Google G icon */}
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                  <path fill="none" d="M0 0h48v48H0z"/>
+                </svg>
+                Continue with Google
+              </>
+            )}
           </button>
 
+
           {error && <p className="text-xs text-red-400 text-center font-sans-clean font-bold">{error}</p>}
-          <div className="flex items-center justify-center gap-2 text-[11px] text-[#f4ebd9]/60 pt-3 border-t border-white/10 font-sans-clean font-semibold"><ShieldCheck className="w-4 h-4 text-emerald-400" /><span>Secure Email + Google Authentication powered by Firebase</span></div>
+          <div className="flex items-center justify-center gap-2 text-[11px] text-[#f4ebd9]/60 pt-3 border-t border-white/10 font-sans-clean font-semibold"><ShieldCheck className="w-4 h-4 text-emerald-400" /><span>Secure Email & Google Authentication</span></div>
+
+          {/* Support link */}
+          <div className="text-center pt-2 pb-1">
+            <p className="text-[10px] text-[#f4ebd9]/40 font-sans-clean mb-1">Having trouble logging in?</p>
+            <a
+              href="mailto:support@thesocialscene.club?subject=Login%20Issue%20-%20The%20Social%20Scene"
+              className="inline-flex items-center gap-1.5 text-[11px] font-sans-clean font-bold text-[#f4ebd9]/60 hover:text-[#cb4b31] transition-colors underline underline-offset-2"
+            >
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+              support@thesocialscene.club
+            </a>
+          </div>
+
           <div className="text-center pt-1"><Link href="/" className="text-xs font-semibold text-[#f4ebd9]/50 hover:text-white transition-colors">Back to home</Link></div>
         </div>
       </main>

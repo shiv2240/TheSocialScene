@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Compass, User, Ticket, CreditCard, LogOut, ChevronDown, Home, Search, Zap, X, Loader2 } from 'lucide-react';
+import { Compass, User, Ticket, CreditCard, LogOut, ChevronDown, Home, Search, Zap, X, Loader2, Shield, FileText } from 'lucide-react';
 
 interface CurrentProfile {
   full_name?: string | null;
@@ -194,6 +194,17 @@ export function Navbar() {
                           </Link>
                         ))}
                       </div>
+                      <div className="border-t border-[#1e1a14]/12 p-2 space-y-0.5">
+                        {[
+                          { href: '/privacy', label: 'Privacy Policy', Icon: Shield },
+                          { href: '/terms',   label: 'Terms of Service', Icon: FileText },
+                        ].map(({ href, label, Icon }) => (
+                          <Link key={href} href={href} onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-xl font-mono text-[9px] font-bold uppercase tracking-widest text-[#1e1a14]/50 hover:bg-[#1e1a14]/8 hover:text-[#1e1a14] transition-colors">
+                            <Icon className="w-3 h-3 shrink-0" />
+                            {label}
+                          </Link>
+                        ))}
+                      </div>
                       <div className="border-t border-[#1e1a14]/12 p-2">
                         <button
                           onClick={signOut}
@@ -353,6 +364,17 @@ export function Navbar() {
               <span className="font-mono text-[9px] uppercase tracking-widest font-bold">{label}</span>
             </Link>
           ))}
+        </div>
+
+        {/* Legal links row */}
+        <div className="flex justify-center gap-4 pb-1">
+          <Link href="/privacy" className="font-mono text-[8px] uppercase tracking-widest text-[#1e1a14]/35 hover:text-[#c93a2a] transition-colors flex items-center gap-1">
+            <Shield className="w-2.5 h-2.5" /> Privacy
+          </Link>
+          <span className="font-mono text-[8px] text-[#1e1a14]/20">·</span>
+          <Link href="/terms" className="font-mono text-[8px] uppercase tracking-widest text-[#1e1a14]/35 hover:text-[#c93a2a] transition-colors flex items-center gap-1">
+            <FileText className="w-2.5 h-2.5" /> Terms
+          </Link>
         </div>
       </nav>
     </>

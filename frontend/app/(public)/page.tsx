@@ -191,8 +191,8 @@ export default async function PublicHomePage() {
               <div className="space-y-3">
                 <div className="flex gap-2 flex-wrap">
                   <span className="pill pill-rust border-[#f7f0e3] text-[#f7f0e3]">Instagram ↗</span>
-                  <span className="pill border-[#f7f0e3] text-[#f7f0e3]">Youtube ↗</span>
-                  <span className="pill border-[#f7f0e3] text-[#f7f0e3]">Facebook ↗</span>
+                  {/* <span className="pill border-[#f7f0e3] text-[#f7f0e3]">Youtube ↗</span>
+                  <span className="pill border-[#f7f0e3] text-[#f7f0e3]">Facebook ↗</span> */}
                 </div>
               </div>
             </div>
@@ -264,7 +264,7 @@ export default async function PublicHomePage() {
         <section className="grid grid-cols-2 sm:grid-cols-4 border-b-2 border-[#1e1a14]">
           {[
             { href: '/events', bg: '#d4963a', textC: '#1e1a14', label: 'WHERE\nTO GO?', sub: 'City Venues', Icon: MapPin },
-            { href: '/categories', bg: '#c93a2a', textC: '#f7f0e3', label: 'HOW IT\nWORKS', sub: 'Community Rules', Icon: Info },
+            { href: '/how-it-works', bg: '#c93a2a', textC: '#f7f0e3', label: 'HOW IT\nWORKS', sub: 'Community Rules', Icon: Info },
             { href: '/tickets', bg: '#f7f0e3', textC: '#1e1a14', label: 'DIGITAL\nPASSES', sub: 'QR Check-in', Icon: QrCode },
             { href: '/become-a-host', bg: '#1e1a14', textC: '#f7f0e3', label: 'HOST\nCLUB', sub: 'Host Perks', Icon: Sparkles },
           ].map(({ href, bg, textC, label, sub, Icon }) => (

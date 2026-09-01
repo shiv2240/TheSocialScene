@@ -28,7 +28,7 @@ export function Footer() {
             </p>
             {/* Social links */}
             <div className="flex gap-2 pt-1">
-              {['TikTok ↗', 'Instagram ↗', 'Youtube ↗'].map(s => (
+              {['Instagram ↗'].map(s => (
                 <span key={s} className="pill text-[8px] py-0.5 px-2.5 cursor-pointer">{s}</span>
               ))}
             </div>
@@ -59,7 +59,7 @@ export function Footer() {
               {[
                 ['Become a Host', '/become-a-host'],
                 ['Digital QR Passes', '/tickets'],
-                ['Host Portal ↗', 'https://admin.thesocialscene.club'],
+                ['Host Portal ↗', 'https://thesocialscene.club/become-a-host'],
               ].map(([l, h]) => (
                 <li key={h}><Link href={h} className="retro-link hover:text-[#c93a2a]">[ {l} ]</Link></li>
               ))}
@@ -72,9 +72,8 @@ export function Footer() {
             </h4>
             <ul className="space-y-2 font-mono text-[11px] text-[#1e1a14]/70">
               <li>support@thesocialscene.club</li>
-              <li>+91 98765 43210</li>
-              <li className="pt-2"><Link href="#" className="retro-link">Privacy Policy</Link></li>
-              <li><Link href="#" className="retro-link">Terms of Service</Link></li>
+              <li className="pt-2"><Link href="/privacy" className="retro-link">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="retro-link">Terms of Service</Link></li>
             </ul>
           </div>
         </div>

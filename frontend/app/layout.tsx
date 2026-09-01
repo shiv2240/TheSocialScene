@@ -9,6 +9,13 @@ import { RequestCacheBootstrap } from '@/components/performance/RequestCacheBoot
 export const metadata: Metadata = {
   title: 'THE SOCIAL SCENE | Sunset Runs · Rooftop Gigs · Outdoor Treks',
   description: 'Curated social experiences — sunset run clubs, rooftop acoustic gigs, mountain treks, and secret supper clubs. Come Solo. Leave With Stories.',
+  icons: {
+    icon: [
+      { url: '/logo-transparent.png', type: 'image/png' },
+    ],
+    apple: '/logo-transparent.png',
+    shortcut: '/logo-transparent.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

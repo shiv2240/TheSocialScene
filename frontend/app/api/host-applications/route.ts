@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const appId = application?.id ?? 'N/A';
       const row = (field: string, value: string | null | undefined) =>
-        value ? `<tr><td style="padding:6px 12px;color:#1e1a14;font-weight:700;font-size:11px;white-space:nowrap;vertical-align:top;text-transform:uppercase;letter-spacing:0.08em;">${field}</td><td style="padding:6px 12px;color:#2b2520;font-size:12px;vertical-align:top;">${value}</td></tr>` : '';
+        value ? `<tr><td style="padding:6px 12px;color:#1e1a14;font-ght:700;font-size:11px;white-space:nowrap;vertical-align:top;text-transform:uppercase;letter-spacing:0.08em;">${field}</td><td style="padding:6px 12px;color:#2b2520;font-size:12px;vertical-align:top;">${value}</td></tr>` : '';
 
       resend.emails.send({
         from: 'The Social Scene <noreply@thesocialscene.club>',
