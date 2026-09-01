@@ -18,7 +18,7 @@ const DESKTOP_PAGE_SIZE = 9;
 const MOBILE_PAGE_SIZE = 6;
 
 interface EventsSearchProps {
-  initialEvents: any[];
+  initialEvents: Awaited<ReturnType<typeof import('@/lib/events').getPublicEvents>>['events'];
   initialTotal: number;
 }
 
@@ -48,7 +48,7 @@ export function EventsSearch({ initialEvents, initialTotal }: EventsSearchProps)
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
   const [category, setCategory] = useState('all');
-  const [results, setResults] = useState<any[]>(initialEvents);
+  const [results, setResults] = useState(initialEvents);
   const [total, setTotal] = useState(initialTotal);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DESKTOP_PAGE_SIZE);
@@ -85,7 +85,6 @@ export function EventsSearch({ initialEvents, initialTotal }: EventsSearchProps)
     }
   }, []);
 
-  // Match the requested 9 desktop / 6 mobile page size without an initial duplicate request.
   useEffect(() => {
     const media = window.matchMedia('(max-width: 767px)');
     const syncPageSize = () => {
@@ -107,7 +106,6 @@ export function EventsSearch({ initialEvents, initialTotal }: EventsSearchProps)
     return () => media.removeEventListener('change', syncPageSize);
   }, [category, fetchResults, initialEvents, initialTotal, query]);
 
-  // Search/category changes are debounced. The initial unfiltered SSR payload is reused.
   useEffect(() => {
     if (firstRenderRef.current) {
       firstRenderRef.current = false;
@@ -117,7 +115,7 @@ export function EventsSearch({ initialEvents, initialTotal }: EventsSearchProps)
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => void fetchResults(query, category, 1, pageSize), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, category]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query, category]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -144,7 +142,7 @@ export function EventsSearch({ initialEvents, initialTotal }: EventsSearchProps)
     <>
       <section className="bg-[#ede4d0] border-b-2 border-[#1e1a14] sticky top-14 sm:top-16 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative flex-1 w-full sm:max-w-sm">
             <Search className="events-search-icon w-4 h-4 text-[#c93a2a] absolute top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
