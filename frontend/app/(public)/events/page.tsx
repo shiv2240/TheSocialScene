@@ -2,12 +2,7 @@ import React, { Suspense } from 'react';
 import { Compass } from 'lucide-react';
 import { EventsSearch } from '@/components/event/EventsSearch';
 import { getPublicEvents } from '@/lib/events';
-import { Navbar } from '@/components/layout/Navbar';
 
-// Do not prerender this page during the Vercel build. The server-side Supabase
-// admin JWT can be rejected by PostgREST when the build environment clock is
-// behind the token's iat. Public event data remains cached for 30 seconds by
-// getPublicEvents(), so this avoids build-time failure without removing caching.
 export const dynamic = 'force-dynamic';
 export const revalidate = 30;
 
@@ -31,7 +26,6 @@ export default async function EventDiscoveryPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f0e3] text-[#1e1a14] pb-24 md:pb-0">
-      <Navbar />
       <main className="flex-1 w-full">
         <section className="bg-[#f7f0e3] border-b-2 border-[#1e1a14]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
