@@ -4,6 +4,11 @@ import { EventsSearch } from '@/components/event/EventsSearch';
 import { getPublicEvents } from '@/lib/events';
 import { Navbar } from '@/components/layout/Navbar';
 
+// Do not prerender this page during the Vercel build. The server-side Supabase
+// admin JWT can be rejected by PostgREST when the build environment clock is
+// behind the token's iat. Public event data remains cached for 30 seconds by
+// getPublicEvents(), so this avoids build-time failure without removing caching.
+export const dynamic = 'force-dynamic';
 export const revalidate = 30;
 
 function EventsSearchFallback() {
