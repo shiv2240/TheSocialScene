@@ -1,7 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowRight, Tag } from 'lucide-react';
-import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { EventCard } from '@/components/event/EventCard';
 import { getPublicCategories, getPublicCategoryEvents } from '@/lib/public-data';
@@ -9,8 +8,6 @@ import { getPublicCategories, getPublicCategoryEvents } from '@/lib/public-data'
 type Category = { id: string; name: string; slug: string; display_order: number | null; is_active: boolean };
 type PublishedEvent = (Awaited<ReturnType<typeof getPublicCategoryEvents>>)[number];
 
-// These values come from Supabase. Do not execute database requests during `next build`.
-// The underlying data helpers are still cached/revalidated at runtime.
 export const dynamic = 'force-dynamic';
 export const revalidate = 30;
 
@@ -33,7 +30,6 @@ export default async function CategoriesPage() {
 
   return (
     <div className="min-h-screen bg-[#0e0d12] text-[#f4ebd9] flex flex-col selection:bg-[#cb4b31] selection:text-white pb-24 md:pb-0">
-      <Navbar />
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 w-full">
         <section className="mb-10">
           <span className="font-sans-clean text-[10px] text-[#e5a83b] font-extrabold uppercase tracking-widest bg-white/10 px-3 py-1 rounded-full border border-white/15 inline-block">● VIBES & STAGES</span>
