@@ -23,32 +23,37 @@ export async function GET(request: NextRequest) {
     let data: any[] = [];
 
     if (q) {
-      const { data: textMatches, error: textError } = await baseQuery().or(
-        `title.ilike.%${q}%,short_description.ilike.%${q}%`
-      );
-      if (textError) throw textError;
-      data = textMatches ?? [];
-
-      const [{ data: categoryMatches, error: categoryError }, { data: venueMatches, error: venueError }] = await Promise.all([
-        supabase
-          .from('event_categories')
-          .select('id,name,slug,display_order')
-          .or(`name.ilike.%${q}%,slug.ilike.%${q}%`),
-        supabase
-          .from('venues')
-          .select('id,name,slug,address,city,capacity')
-          .or(`name.ilike.%${q}%,slug.ilike.%${q}%,address.ilike.%${q}%,city.ilike.%${q}%`),
+      const [textResult, categoryResult, venueResult, tagResult] = await Promise.all([
+        baseQuery().or(`title.ilike.%${q}%,short_description.ilike.%${q}%,description.ilike.%${q}%`),
+        supabase.from('event_categories').select('id,name,slug,display_order').or(`name.ilike.%${q}%,slug.ilike.%${q}%`),
+        supabase.from('venues').select('id,name,slug,address,city,capacity').or(`name.ilike.%${q}%,slug.ilike.%${q}%,address.ilike.%${q}%,city.ilike.%${q}%`),
+        supabase.from('event_tags').select('id,name,slug').eq('is_active', true).or(`name.ilike.%${q}%,slug.ilike.%${q}%`),
       ]);
 
-      if (categoryError) throw categoryError;
-      if (venueError) throw venueError;
+      if (textResult.error) throw textResult.error;
+      if (categoryResult.error) throw categoryResult.error;
+      if (venueResult.error) throw venueResult.error;
+      if (tagResult.error) throw tagResult.error;
 
-      const categoryIds = (categoryMatches ?? []).map((item: any) => item.id);
-      const venueIds = (venueMatches ?? []).map((item: any) => item.id);
+      data = textResult.data ?? [];
+
+      const categoryIds = (categoryResult.data ?? []).map((item: any) => item.id);
+      const venueIds = (venueResult.data ?? []).map((item: any) => item.id);
+      const tagIds = (tagResult.data ?? []).map((item: any) => item.id);
       const relationQueries: Promise<any>[] = [];
 
       if (categoryIds.length) relationQueries.push(baseQuery().in('category_id', categoryIds));
       if (venueIds.length) relationQueries.push(baseQuery().in('venue_id', venueIds));
+
+      if (tagIds.length) {
+        const { data: mappings, error: mappingError } = await supabase
+          .from('event_tag_mappings')
+          .select('event_id')
+          .in('tag_id', tagIds);
+        if (mappingError) throw mappingError;
+        const eventIds = (mappings ?? []).map((item: any) => item.event_id);
+        if (eventIds.length) relationQueries.push(baseQuery().in('id', eventIds));
+      }
 
       const relationResults = await Promise.all(relationQueries);
       for (const result of relationResults) {
