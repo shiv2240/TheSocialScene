@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { EventCard } from '@/components/event/EventCard';
+import type { EventItem } from '@backend/types/database.types';
 
 const CATEGORIES = [
   { name: 'All Gatherings', slug: 'all' },
@@ -18,7 +19,7 @@ const DESKTOP_PAGE_SIZE = 9;
 const MOBILE_PAGE_SIZE = 6;
 
 interface EventsSearchProps {
-  initialEvents: Awaited<ReturnType<typeof import('@/lib/events').getPublicEvents>>['events'];
+  initialEvents: EventItem[];
   initialTotal: number;
 }
 
@@ -48,7 +49,7 @@ export function EventsSearch({ initialEvents, initialTotal }: EventsSearchProps)
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
   const [category, setCategory] = useState('all');
-  const [results, setResults] = useState(initialEvents);
+  const [results, setResults] = useState<EventItem[]>(initialEvents);
   const [total, setTotal] = useState(initialTotal);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DESKTOP_PAGE_SIZE);
@@ -74,9 +75,11 @@ export function EventsSearch({ initialEvents, initialTotal }: EventsSearchProps)
         signal: controller.signal,
       });
       if (!res.ok) throw new Error('search failed');
-      const body = await res.json();
-      setResults(body.results ?? []);
-      setTotal(Number(body.total ?? 0));
+      const body: unknown = await res.json();
+      if (!body || typeof body !== 'object') throw new Error('invalid search response');
+      const payload = body as { results?: EventItem[]; total?: number };
+      setResults(payload.results ?? []);
+      setTotal(Number(payload.total ?? 0));
       setPage(nextPage);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') setError('Unable to load experiences. Please try again.');
@@ -202,34 +205,11 @@ export function EventsSearch({ initialEvents, initialTotal }: EventsSearchProps)
 
               {totalPages > 1 && (
                 <nav aria-label="Event pagination" className="mt-10 flex items-center justify-center gap-2 sm:gap-3">
-                  <button
-                    onClick={() => goToPage(page - 1)}
-                    disabled={page === 1 || loading}
-                    aria-label="Previous page"
-                    className="w-10 h-10 rounded-full border-2 border-[#f7f0e3] text-[#f7f0e3] flex items-center justify-center disabled:opacity-30 hover:bg-[#f7f0e3] hover:text-[#c93a2a] transition-colors"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-
+                  <button onClick={() => goToPage(page - 1)} disabled={page === 1 || loading} aria-label="Previous page" className="w-10 h-10 rounded-full border-2 border-[#f7f0e3] text-[#f7f0e3] flex items-center justify-center disabled:opacity-30 hover:bg-[#f7f0e3] hover:text-[#c93a2a] transition-colors"><ChevronLeft className="w-4 h-4" /></button>
                   {Array.from({ length: totalPages }, (_, index) => index + 1).map(pageNumber => (
-                    <button
-                      key={pageNumber}
-                      onClick={() => goToPage(pageNumber)}
-                      aria-current={pageNumber === page ? 'page' : undefined}
-                      className={`w-10 h-10 rounded-full border-2 font-mono text-[10px] font-bold transition-colors ${pageNumber === page ? 'bg-[#f7f0e3] text-[#c93a2a] border-[#f7f0e3]' : 'border-[#f7f0e3]/50 text-[#f7f0e3] hover:border-[#f7f0e3] hover:bg-[#f7f0e3]/10'}`}
-                    >
-                      {pageNumber}
-                    </button>
+                    <button key={pageNumber} onClick={() => goToPage(pageNumber)} aria-current={pageNumber === page ? 'page' : undefined} className={`w-10 h-10 rounded-full border-2 font-mono text-[10px] font-bold transition-colors ${pageNumber === page ? 'bg-[#f7f0e3] text-[#c93a2a] border-[#f7f0e3]' : 'border-[#f7f0e3]/50 text-[#f7f0e3] hover:border-[#f7f0e3] hover:bg-[#f7f0e3]/10'}`}>{pageNumber}</button>
                   ))}
-
-                  <button
-                    onClick={() => goToPage(page + 1)}
-                    disabled={page === totalPages || loading}
-                    aria-label="Next page"
-                    className="w-10 h-10 rounded-full border-2 border-[#f7f0e3] text-[#f7f0e3] flex items-center justify-center disabled:opacity-30 hover:bg-[#f7f0e3] hover:text-[#c93a2a] transition-colors"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                  <button onClick={() => goToPage(page + 1)} disabled={page === totalPages || loading} aria-label="Next page" className="w-10 h-10 rounded-full border-2 border-[#f7f0e3] text-[#f7f0e3] flex items-center justify-center disabled:opacity-30 hover:bg-[#f7f0e3] hover:text-[#c93a2a] transition-colors"><ChevronRight className="w-4 h-4" /></button>
                 </nav>
               )}
             </>
