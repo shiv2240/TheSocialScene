@@ -10,7 +10,7 @@ const ITEMS = [
   { href: '/events', label: 'Explore', Icon: Compass },
   { href: '/categories', label: 'Stages', Icon: Layers3 },
   { href: '/become-a-host', label: 'Host', Icon: Sparkles },
-  { href: '/profile', label: 'Account', Icon: User },
+  { href: '/account', label: 'Account', Icon: User },
 ];
 
 const isActive = (pathname: string | null, href: string) =>
@@ -22,7 +22,6 @@ export function MobileNavigation() {
   useEffect(() => {
     const nav = document.querySelector<HTMLElement>('.retro-nav');
     if (!nav) return;
-
     const update = () => nav.classList.toggle('retro-nav-scrolled', window.scrollY > 18);
     update();
     window.addEventListener('scroll', update, { passive: true });
@@ -30,11 +29,8 @@ export function MobileNavigation() {
   }, []);
 
   return (
-    <nav
-      aria-label="Mobile navigation"
-      className="retro-mobile-dock md:hidden fixed bottom-0 left-0 right-0 z-[55] px-2 pb-safe pt-2"
-    >
-      <div className="mobile-dock-surface mx-auto max-w-md rounded-[1.35rem] border-2 border-[#1e1a14] shadow-[0_8px_28px_rgba(30,26,20,0.18)] px-1.5 py-1.5">
+    <nav aria-label="Mobile navigation" className="retro-mobile-dock">
+      <div className="mobile-dock-surface">
         <div className="grid grid-cols-5 gap-0.5">
           {ITEMS.map(({ href, label, Icon }) => {
             const active = isActive(pathname, href);
@@ -50,9 +46,7 @@ export function MobileNavigation() {
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                <span className="font-mono text-[8px] font-bold uppercase tracking-wider truncate max-w-full">
-                  {label}
-                </span>
+                <span className="font-mono text-[8px] font-bold uppercase tracking-wider truncate max-w-full">{label}</span>
               </Link>
             );
           })}
