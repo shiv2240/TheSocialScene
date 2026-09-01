@@ -17,17 +17,18 @@ async function queryPublicEvents(page: number, pageSize: number, category: strin
   const supabase = getSupabaseAdmin();
   const from = Math.max(0, (page - 1) * pageSize);
   const to = from + pageSize - 1;
+  const select = category && category !== 'all'
+    ? `id,title,slug,short_description,capacity,registered_count,registration_open,price,currency,cover_image,start_at,category:event_categories!inner(id,name,slug,display_order),venue:venues(id,name,slug,address,city,capacity)`
+    : EVENT_CARD_SELECT;
 
   let query = supabase
     .from('events')
-    .select(EVENT_CARD_SELECT, { count: 'exact' })
+    .select(select, { count: 'exact' })
     .eq('status', 'PUBLISHED')
     .order('start_at', { ascending: true })
     .range(from, to);
 
-  if (category && category !== 'all') {
-    query = query.eq('category.slug', category);
-  }
+  if (category && category !== 'all') query = query.eq('category.slug', category);
 
   const { data, count, error } = await query;
   if (error) throw error;
