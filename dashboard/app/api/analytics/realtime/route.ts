@@ -18,7 +18,7 @@ async function getAccessToken(email: string, privateKey: string): Promise<string
   signer.update(`${header}.${payload}`);
   const signature = signer.sign(privateKey).toString('base64url');
   const assertion = `${header}.${payload}.${signature}`;
-  const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:params:jwt-bearer', assertion }) });
+  const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }) });
   const body = await response.json() as TokenResponse;
   if (!response.ok || !body.access_token) throw new Error('Unable to authenticate with Google Analytics.');
   return body.access_token;
