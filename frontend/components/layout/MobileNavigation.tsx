@@ -34,7 +34,7 @@ export function MobileNavigation() {
       aria-label="Mobile navigation"
       className="retro-mobile-dock md:hidden fixed bottom-0 left-0 right-0 z-[55] px-2 pb-safe pt-2"
     >
-      <div className="retro-dock mx-auto max-w-md rounded-[1.35rem] border-2 border-[#1e1a14] shadow-[0_8px_28px_rgba(30,26,20,0.18)] px-1.5 py-1.5">
+      <div className="mobile-dock-surface mx-auto max-w-md rounded-[1.35rem] border-2 border-[#1e1a14] shadow-[0_8px_28px_rgba(30,26,20,0.18)] px-1.5 py-1.5">
         <div className="grid grid-cols-5 gap-0.5">
           {ITEMS.map(({ href, label, Icon }) => {
             const active = isActive(pathname, href);
