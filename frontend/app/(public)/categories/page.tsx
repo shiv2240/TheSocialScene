@@ -9,6 +9,9 @@ import { getPublicCategories, getPublicCategoryEvents } from '@/lib/public-data'
 type Category = { id: string; name: string; slug: string; display_order: number | null; is_active: boolean };
 type PublishedEvent = (Awaited<ReturnType<typeof getPublicCategoryEvents>>)[number];
 
+// These values come from Supabase. Do not execute database requests during `next build`.
+// The underlying data helpers are still cached/revalidated at runtime.
+export const dynamic = 'force-dynamic';
 export const revalidate = 30;
 
 export default async function CategoriesPage() {
