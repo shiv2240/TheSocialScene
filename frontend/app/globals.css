@@ -90,6 +90,10 @@ body {
   transition: margin 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
+/* RootLayout already owns the global navbar. Page-level copies must not render a second header. */
+body > .retro-nav { display: block; }
+body .retro-nav:not(body > .retro-nav) { display: none; }
+
 @supports (animation-timeline: scroll()) {
   .retro-nav {
     animation: retro-nav-float linear both;
@@ -117,7 +121,6 @@ body {
 
   .retro-nav > div { transition: padding 0.25s ease, max-width 0.25s ease; }
 
-  /* Keep the page canvas visually aligned with the narrower floating navbar. */
   .retro-nav + main,
   .retro-nav + [role="main"] {
     animation: retro-content-compact linear both;
@@ -139,7 +142,6 @@ body {
   border-top: 1.5px solid rgba(30,26,20,0.15);
 }
 
-/* Navbar owns its legacy mobile dock markup; the root MobileNavigation is the active dock. */
 .retro-nav ~ .retro-dock { display: none !important; }
 
 .retro-rule { border: none; border-top: 1.5px solid rgba(30,26,20,0.2); margin: 0; }
@@ -196,10 +198,15 @@ body {
     top: 0;
     z-index: 50;
     padding-top: 4px;
+    width: 100%;
   }
+
+  .retro-nav > div { width: 100%; }
+  .retro-nav > div > div { min-height: 56px; }
 
   .retro-nav.retro-nav-scrolled {
     margin: 8px 10px 0;
+    width: calc(100% - 20px);
     border: 1.5px solid rgba(30,26,20,0.22);
     border-radius: 9999px;
     box-shadow: 0 10px 28px rgba(30,26,20,0.14);
