@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Calendar, MapPin, ArrowLeft, CheckCircle2, Ticket, Users, Sparkles, Flame, ShieldCheck } from 'lucide-react';
+import { Calendar, MapPin, ArrowLeft, CheckCircle2, Ticket, Users, Sparkles, Flame, ShieldCheck, ExternalLink } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils';
 import { Navbar } from '@/components/layout/Navbar';
@@ -16,7 +16,7 @@ export default async function EventDetailPage({ params }: EventDetailsProps) {
   const supabase = await createClient();
   const { data: event } = await supabase
     .from('events')
-    .select('*, category:event_categories(id, name, slug), venue:venues(id, name, address, city)')
+    .select('*, category:event_categories(id, name, slug), venue:venues(id, name, address, city, google_maps_url)')
     .eq('slug', slug)
     .eq('status', 'PUBLISHED')
     .maybeSingle();
@@ -84,11 +84,11 @@ export default async function EventDetailPage({ params }: EventDetailsProps) {
 
               {/* Schedule & Location */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-white/10">
-                <div className="flex items-start gap-3 p-4 rounded-2xl bg-white/5 border border-white/10">
+                <div className="flex items-start gap-3 min-w-0 p-4 rounded-2xl bg-white/5 border border-white/10">
                   <div className="w-10 h-10 rounded-xl bg-[#cb4b31] text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Calendar className="w-5 h-5" />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <span className="text-[10px] font-extrabold text-[#f4ebd9]/60 block uppercase tracking-wider font-sans-clean">
                       Date & Schedule
                     </span>
@@ -101,20 +101,33 @@ export default async function EventDetailPage({ params }: EventDetailsProps) {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-4 rounded-2xl bg-white/5 border border-white/10">
+                <div className="flex items-start gap-3 min-w-0 p-4 rounded-2xl bg-white/5 border border-white/10">
                   <div className="w-10 h-10 rounded-xl bg-[#e5a83b] text-[#0e0d12] flex items-center justify-center shrink-0 shadow-xs">
                     <MapPin className="w-5 h-5" />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <span className="text-[10px] font-extrabold text-[#f4ebd9]/60 block uppercase tracking-wider font-sans-clean">
                       Venue Location
                     </span>
-                    <span className="font-sans-clean text-xs sm:text-sm font-extrabold text-white block mt-0.5 truncate">
+                    <span className="font-sans-clean text-xs sm:text-sm font-extrabold text-white block mt-0.5 break-words">
                       {event.venue?.name || 'Venue TBA'}
                     </span>
-                    <span className="font-sans-clean text-xs text-[#f4ebd9]/70 block truncate font-medium">
-                      {event.venue?.address} {event.venue?.city ? `, ${event.venue.city}` : ''}
-                    </span>
+                    {event.venue?.address || event.venue?.city ? (
+                      <span className="font-sans-clean text-xs text-[#f4ebd9]/70 block break-words whitespace-normal font-medium mt-0.5">
+                        {event.venue?.address || ''}{event.venue?.address && event.venue?.city ? ', ' : ''}{event.venue?.city || ''}
+                      </span>
+                    ) : null}
+                    {event.venue?.google_maps_url ? (
+                      <a
+                        href={event.venue.google_maps_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex max-w-full items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full bg-[#cb4b31]/15 border border-[#cb4b31]/40 text-[#ff7658] hover:bg-[#cb4b31] hover:text-white transition-colors text-[10px] font-extrabold uppercase tracking-wider font-sans-clean"
+                      >
+                        <ExternalLink className="w-3 h-3 shrink-0" />
+                        <span>Open in Google Maps</span>
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               </div>
