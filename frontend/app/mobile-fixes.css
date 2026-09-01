@@ -1,0 +1,71 @@
+/* Mobile navigation and event-search hardening. Keep this file after globals.css so these rules win. */
+
+.retro-mobile-dock {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .retro-mobile-dock {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 9999;
+    padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+    pointer-events: none;
+  }
+
+  .mobile-dock-surface {
+    width: min(100%, 448px);
+    margin: 0 auto;
+    padding: 6px;
+    border-radius: 22px;
+    background: rgba(237, 228, 208, 0.98);
+    border: 2px solid #1e1a14;
+    box-shadow: 0 8px 28px rgba(30, 26, 20, 0.2);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    pointer-events: auto;
+  }
+
+  .retro-mobile-dock a {
+    min-width: 0;
+  }
+
+  /* Never allow the fixed dock to be pushed off-screen by a page wrapper. */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Give pages enough scroll room so the dock never covers the final content. */
+  body::after {
+    content: '';
+    display: block;
+    height: 88px;
+  }
+
+  /* Search field: reserve a real icon column; globals.css defines a generic padding. */
+  .events-search-field {
+    padding-left: 2.75rem !important;
+    padding-right: 2.75rem !important;
+  }
+
+  .events-search-icon {
+    left: 0.9rem !important;
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .events-search-field {
+    padding-left: 2.75rem !important;
+    padding-right: 2.75rem !important;
+  }
+
+  .events-search-icon {
+    left: 0.9rem !important;
+  }
+}
