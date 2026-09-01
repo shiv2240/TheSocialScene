@@ -14,6 +14,7 @@ const profileSchema = z.object({
 
 const onboardingSchema = z.object({ full_name: z.string().trim().min(2).max(100), age: z.coerce.number().int().min(13).max(120) });
 const profileSelect = 'id, full_name, username, age, onboarding_completed, phone, phone_verified, email, email_verified, marketing_opt_in, status, created_at';
+const privateCacheHeaders = { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' };
 
 function makeUsername(fullName: string) {
   const base = fullName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '').slice(0, 24) || 'member';
@@ -23,14 +24,12 @@ function makeUsername(fullName: string) {
 
 export async function GET() {
   const user = await getCurrentFirebaseUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
 
   const supabase = getSupabaseAdmin();
   let { data: profile, error } = await supabase.from('profiles').select(profileSelect).eq('firebase_uid', user.uid).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
 
-  // Email/Google Firebase users do not pass through the phone OTP provisioning
-  // route, so create their public profile lazily on first authenticated access.
   if (!profile) {
     const { data: created, error: createError } = await supabase.from('profiles').insert({
       firebase_uid: user.uid,
@@ -41,11 +40,11 @@ export async function GET() {
       full_name: user.name || 'The Social Scene Member',
       onboarding_completed: false,
     }).select(profileSelect).single();
-    if (createError) return NextResponse.json({ error: createError.message }, { status: 500 });
+    if (createError) return NextResponse.json({ error: createError.message }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
     profile = created;
   }
 
-  return NextResponse.json({ profile });
+  return NextResponse.json({ profile }, { headers: privateCacheHeaders });
 }
 
 export async function POST(request: NextRequest) {
