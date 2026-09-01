@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './mobile-fixes.css';
 import { MobileNavigation } from '@/components/layout/MobileNavigation';
 
 export const metadata: Metadata = {
@@ -18,11 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body
-        className="min-h-full antialiased"
-        style={{ backgroundColor: '#ede4d0', color: '#1e1a14' }}
-        suppressHydrationWarning
-      >
+      <body className="min-h-full antialiased" style={{ backgroundColor: '#ede4d0', color: '#1e1a14' }} suppressHydrationWarning>
         {children}
         <MobileNavigation />
       </body>
