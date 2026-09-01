@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import type { EventItem } from '@backend/types/database.types';
 
 export const EVENT_CARD_SELECT = `
   id,title,slug,short_description,capacity,registered_count,registration_open,
@@ -9,11 +10,11 @@ export const EVENT_CARD_SELECT = `
 `;
 
 export interface PublicEventsPage {
-  events: any[];
+  events: EventItem[];
   total: number;
 }
 
-async function queryPublicEvents(page: number, pageSize: number, category: string) {
+async function queryPublicEvents(page: number, pageSize: number, category: string): Promise<PublicEventsPage> {
   const supabase = getSupabaseAdmin();
   const from = Math.max(0, (page - 1) * pageSize);
   const to = from + pageSize - 1;
@@ -33,7 +34,7 @@ async function queryPublicEvents(page: number, pageSize: number, category: strin
   const { data, count, error } = await query;
   if (error) throw error;
 
-  return { events: data ?? [], total: count ?? 0 } satisfies PublicEventsPage;
+  return { events: (data ?? []) as EventItem[], total: count ?? 0 };
 }
 
 export async function getPublicEvents(page = 1, pageSize = 9, category = 'all') {
