@@ -1,41 +1,76 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
+const escapeSearchTerm = (value: string) =>
+  value.replace(/[,%()]/g, ' ').replace(/\s+/g, ' ').trim();
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
-    const q        = searchParams.get('q')?.trim() ?? '';
+    const rawQ = searchParams.get('q')?.trim() ?? '';
+    const q = escapeSearchTerm(rawQ);
     const category = searchParams.get('category') ?? 'all';
-    const limit    = Math.min(Number(searchParams.get('limit') ?? '50'), 100);
+    const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? '50') || 50, 1), 100);
 
     const supabase = getSupabaseAdmin();
-    let query = supabase
+    const baseQuery = () => supabase
       .from('events')
       .select('*, category:event_categories(id,name,slug,display_order), venue:venues(id,name,slug,address,city,capacity)')
       .eq('status', 'PUBLISHED')
       .order('start_at', { ascending: true })
       .limit(limit);
 
-    // Full-text / partial match on title, short_description, venue city
+    let data: any[] = [];
+
     if (q) {
-      query = query.or(
+      const { data: textMatches, error: textError } = await baseQuery().or(
         `title.ilike.%${q}%,short_description.ilike.%${q}%`
       );
+      if (textError) throw textError;
+      data = textMatches ?? [];
+
+      const [{ data: categoryMatches, error: categoryError }, { data: venueMatches, error: venueError }] = await Promise.all([
+        supabase
+          .from('event_categories')
+          .select('id,name,slug,display_order')
+          .or(`name.ilike.%${q}%,slug.ilike.%${q}%`),
+        supabase
+          .from('venues')
+          .select('id,name,slug,address,city,capacity')
+          .or(`name.ilike.%${q}%,slug.ilike.%${q}%,address.ilike.%${q}%,city.ilike.%${q}%`),
+      ]);
+
+      if (categoryError) throw categoryError;
+      if (venueError) throw venueError;
+
+      const categoryIds = (categoryMatches ?? []).map((item: any) => item.id);
+      const venueIds = (venueMatches ?? []).map((item: any) => item.id);
+      const relationQueries: Promise<any>[] = [];
+
+      if (categoryIds.length) relationQueries.push(baseQuery().in('category_id', categoryIds));
+      if (venueIds.length) relationQueries.push(baseQuery().in('venue_id', venueIds));
+
+      const relationResults = await Promise.all(relationQueries);
+      for (const result of relationResults) {
+        if (result.error) throw result.error;
+        data.push(...(result.data ?? []));
+      }
+    } else {
+      const { data: allEvents, error } = await baseQuery();
+      if (error) throw error;
+      data = allEvents ?? [];
     }
 
-    // Category filter via the joined category slug
     if (category && category !== 'all') {
-      query = query.eq('category.slug', category);
+      data = data.filter((event: any) => event.category?.slug === category);
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
+    const unique = new Map<string, any>();
+    for (const event of data) unique.set(event.id, event);
 
-    // If category filter was applied, Supabase may still return rows where
-    // the join didn't match (returns null category). Filter those out client-side.
-    const results = category && category !== 'all'
-      ? (data ?? []).filter((e: any) => e.category?.slug === category)
-      : (data ?? []);
+    const results = Array.from(unique.values())
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+      .slice(0, limit);
 
     return NextResponse.json({ results, total: results.length });
   } catch (err) {
