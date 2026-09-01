@@ -5,6 +5,8 @@ import { Footer } from '@/components/layout/Footer';
 import { EventsSearch } from '@/components/event/EventsSearch';
 import { getPublicEvents } from '@/lib/events';
 
+export const revalidate = 30;
+
 export default async function EventDiscoveryPage() {
   const { events, total } = await getPublicEvents(1, 9, 'all');
 
