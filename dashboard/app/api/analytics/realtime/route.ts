@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     if (!propertyId || !serviceEmail || !privateKey) return NextResponse.json({ configured: false, provider, error: `${provider === 'firebase' ? 'Firebase/GA4' : 'Google Analytics'} realtime analytics is not configured.` });
 
     const accessToken = await getAccessToken(serviceEmail, privateKey);
-    const response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runRealtimeReport`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ dimensions: [{ name: 'unifiedScreenClass' }], metrics: [{ name: 'activeUsers' }], limit: 10 }) });
+    const response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runRealtimeReport`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ dimensions: [{ name: 'unifiedScreenName' }], metrics: [{ name: 'activeUsers' }], limit: 10 }) });
     const body = await response.json() as RealtimeResponse & { error?: { message?: string } };
     if (!response.ok) throw new Error(body.error?.message || 'Unable to load realtime analytics.');
     const activeUsers = Number(body.totals?.[0]?.metricValues?.[0]?.value ?? 0);
