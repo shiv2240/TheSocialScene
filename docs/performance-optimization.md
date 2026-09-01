@@ -39,9 +39,40 @@ Added migration `00018_performance_indexes.sql` with indexes for the main access
 
 The principle is to index columns used frequently by `WHERE`, `JOIN`, filtering and ordering operations while avoiding indiscriminate indexing that increases write cost.
 
-### Navbar / layout performance
+### Persistent navigation and route transitions
 
-The floating navbar transition uses CSS scroll-driven animation where supported, avoiding a React scroll listener and repeated state updates during scrolling.
+The public application's top Navbar is now mounted at the root layout so it survives client-side route transitions instead of being destroyed and recreated for every page.
+
+The existing page-level Navbar instances are kept temporarily for compatibility but are visually disabled; the root instance owns the persistent navigation chrome.
+
+The mobile bottom navigation is already mounted from the root layout and therefore remains persistent across route transitions.
+
+### Dynamic data vs page shell
+
+Navigation should not be treated as a full browser reload. The intended architecture is:
+
+```text
+Persistent application shell
+├── Navbar / bottom navigation
+├── Static page structure
+└── Route-specific data
+    ├── cached public data
+    └── dynamic user/transactional data
+```
+
+Public categories and category event previews now use server-side `unstable_cache` with short revalidation. This prevents every navigation to `/categories` from executing the same database queries.
+
+### Request coalescing for profile state
+
+The Navbar previously requested `/api/profile` with `cache: 'no-store'` every time a page-level Navbar mounted. A lightweight native browser `fetch` request-coalescing layer now caches that non-transactional profile response for 60 seconds and deduplicates simultaneous requests.
+
+The cache is invalidated by the existing `tss:profile-updated` event. This keeps account state reasonably fresh without turning every route transition into another profile API round trip.
+
+This is intentionally implemented with native browser APIs rather than adding a heavy client-state dependency solely for one small request.
+
+### Route-wide loader removal
+
+The account route-group `loading.tsx` was removed because it replaced the entire page with a loading screen during navigation. The preferred behavior is to preserve the existing UI during a client transition and use localized skeletons only where a genuinely dynamic section needs one.
 
 ## 3. Frontend optimization roadmap
 
@@ -74,9 +105,9 @@ Page → ┬→ API A
 
 Where possible, fetch data on the server and render the result directly instead of making the browser fetch data that the server already needs.
 
-### Streaming and loading UI
+### Streaming and localized loading UI
 
-Use route-level `loading.tsx` files and skeleton states for expensive routes. Stream critical UI first and defer non-critical sections where practical.
+Use `loading.tsx` or skeleton components only at the appropriate route/section boundary. Do not use a global full-page spinner for every navigation when only one data region is dynamic.
 
 ### Image optimization
 
@@ -93,6 +124,12 @@ Use `next/image` for application-managed images and apply:
 ### JavaScript bundle control
 
 Audit client bundles and remove unnecessary dependencies. Use dynamic imports only for genuinely heavy, non-critical UI. Avoid loading dashboard-only libraries into the public application.
+
+### Native/core JavaScript
+
+Prefer browser-native APIs when they solve a small performance problem cleanly: `fetch`, `AbortController`, `IntersectionObserver`, `requestIdleCallback` and passive event listeners can reduce dependency overhead.
+
+Do **not** replace a framework capability with hand-written JavaScript merely for perceived speed. Core JavaScript is appropriate when the problem is small and well-defined; application architecture, caching and rendering strategy usually have much larger performance impact.
 
 ### Font optimization
 
@@ -146,7 +183,7 @@ Caching should be based on data volatility.
 | Host profiles | Medium revalidation |
 | Venue information | Medium revalidation |
 | Search results | Short cache |
-| User profile | Dynamic |
+| User profile | Short client cache / revalidation |
 | Orders/tickets | Dynamic |
 | Payments | Never serve stale transactional state |
 | Authentication/session | Dynamic |
@@ -215,7 +252,7 @@ The objective is to turn a statement such as “the website is slow” into a me
 
 A strong answer:
 
-> “I would first establish a performance baseline instead of optimizing blindly. I would inspect the browser waterfall and measure TTFB, LCP, payload sizes and API latency. On the backend I would profile database queries, use `EXPLAIN ANALYZE`, add targeted indexes, eliminate N+1 queries and paginate large datasets. I would parallelize independent requests and cache read-heavy public data with appropriate revalidation. On the frontend I would prefer Server Components, reduce client JavaScript, optimize images and fonts, lazy-load below-the-fold content, and use streaming/loading states. Finally I would validate the changes using Core Web Vitals and production telemetry.”
+> “I would first establish a performance baseline instead of optimizing blindly. I would inspect the browser waterfall and measure TTFB, LCP, payload sizes and API latency. On the backend I would profile database queries, use `EXPLAIN ANALYZE`, add targeted indexes, eliminate N+1 queries and paginate large datasets. I would parallelize independent requests and cache read-heavy public data with appropriate revalidation. On the frontend I would prefer Server Components, reduce client JavaScript, optimize images and fonts, lazy-load below-the-fold content, and use streaming/loading states. I would also keep persistent application chrome outside route-specific rendering so navigation does not recreate it. Finally I would validate the changes using Core Web Vitals and production telemetry.”
 
 ## 12. Important engineering principle
 
