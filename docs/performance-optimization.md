@@ -19,7 +19,8 @@ Always **measure → identify bottleneck → optimize → verify**. Do not optim
 
 ### `/events` build stability
 - `EventsSearch` uses `useSearchParams()`, so it is wrapped in a React `Suspense` boundary at the route level as required by Next.js 16 production prerendering.
-- This keeps the interactive search/filter island client-side while allowing the page shell and initial event data to render on the server.
+- The `/events` route is explicitly `force-dynamic` because its server-side Supabase admin query can fail during Vercel build-time prerendering with PostgREST `PGRST303` (`JWT issued at future`) when build-environment clock skew makes the service JWT appear not-yet-valid.
+- Public event data remains cached for 30 seconds inside `getPublicEvents()`, so avoiding build-time prerendering does not mean abandoning application-level caching.
 
 ### CSS stability
 - Fixed invalid Tailwind selector escaping in `globals.css` (`.md\\:hidden` → valid `.md\:hidden`).
@@ -101,6 +102,7 @@ Indexing principle: optimize actual access patterns without indiscriminately ind
 - Large original images for small cards.
 - Making an entire page a Client Component unnecessarily.
 - Adding libraries when a native browser API is sufficient.
+- Performing authenticated/admin Supabase queries during build-time prerender when the data can safely be fetched at request time.
 
 ## 8. Core Web Vitals targets
 
@@ -152,7 +154,7 @@ A useful diagnosis converts “the website is slow” into a measurable bottlene
 
 **How would you fix a Next.js + PostgreSQL application where every navigation shows a loader and feels slow?**
 
-> “First I would determine whether the navigation is actually doing a browser reload or whether the Next.js route transition is re-executing server data fetching. I would inspect the Network waterfall and identify which requests repeat. I would move persistent navigation and static UI into layouts so they survive route transitions, keep only truly dynamic data dynamic, cache public read-heavy data with appropriate revalidation, and deduplicate repeated requests. I would isolate client-side search/filter logic behind Suspense instead of making the entire page client-rendered. On the backend I would profile database queries, add targeted indexes, eliminate N+1 queries, paginate large collections and parallelize independent work. Finally I would validate TTFB, LCP, INP, payload size and API latency before and after the changes.”
+> “First I would determine whether the navigation is actually doing a browser reload or whether the Next.js route transition is re-executing server data fetching. I would inspect the Network waterfall and identify which requests repeat. I would move persistent navigation and static UI into layouts so they survive route transitions, keep only truly dynamic data dynamic, cache public read-heavy data with appropriate revalidation, and deduplicate repeated requests. I would isolate client-side search/filter logic behind Suspense instead of making the entire page client-rendered. On the backend I would profile database queries, add targeted indexes, eliminate N+1 queries, paginate large collections and parallelize independent work. I would also make sure build-time rendering does not depend on credentials or external state that can fail due to environment differences. Finally I would validate TTFB, LCP, INP, payload size and API latency before and after the changes.”
 
 ## 12. Engineering principle
 
