@@ -4,179 +4,80 @@ This document records the production performance strategy used for The Social Sc
 
 ## 1. Performance model
 
-The target is to optimize the complete request path:
-
 `Browser → CDN/Edge → Next.js → API → Database / External APIs → Response → Browser`
 
-Do not optimize by guesswork. First identify whether latency is coming from TTFB, server execution, database queries, external services, payload size, image transfer, JavaScript execution, or rendering.
+Always **measure → identify bottleneck → optimize → verify**. Do not optimize by guesswork.
 
-## 2. Implemented in this optimization pass
+## 2. Current production fixes
 
-### Next.js production configuration
+### Navigation and page shell
+- Keep persistent navigation outside route-specific page rendering where possible.
+- `/events` explicitly renders the shared Navbar so Explore cannot render without the desktop/mobile header.
+- Root `MobileNavigation` remains persistent across route transitions.
+- Avoid route-wide loading screens when only dynamic data is changing.
+- Use localized skeletons for genuinely asynchronous sections.
 
-- Enabled response compression with `compress: true`.
-- Disabled the `X-Powered-By` header with `poweredByHeader: false`.
-- Enabled AVIF/WebP image formats for Next.js Image Optimization.
-- Configured the approved remote image origin (`images.unsplash.com`).
-- Enabled `optimizePackageImports` for `lucide-react` and `framer-motion` to reduce unnecessary client bundle imports.
+### `/events` build stability
+- `EventsSearch` uses `useSearchParams()`, so it is wrapped in a React `Suspense` boundary at the route level as required by Next.js 16 production prerendering.
+- This keeps the interactive search/filter island client-side while allowing the page shell and initial event data to render on the server.
 
-### Database query performance
+### CSS stability
+- Fixed invalid Tailwind selector escaping in `globals.css` (`.md\\:hidden` → valid `.md\:hidden`).
+- Avoid broad selectors that unintentionally alter unrelated page content.
+- Floating-navbar content compaction is scoped to the Navbar's immediate page sibling rather than `body > main`, reducing layout side effects.
 
-Added migration `00018_performance_indexes.sql` with indexes for the main access patterns:
+### Data fetching
+- Public event data is server-rendered with short revalidation.
+- Categories/category previews use short server-side caching/revalidation.
+- Independent requests are executed in parallel.
+- Profile requests are coalesced/cached briefly on the client instead of issuing a new `/api/profile` request for every navigation.
 
-- Published/featured event discovery ordered by start time.
-- Event filtering by category, host and venue.
-- Event gallery and host mappings.
-- Event schedules ordered by start time.
-- Registration lookup by event/status and user/date.
-- Ticket lookup by user/status, event/status and registration.
-- Check-in history by event/user and time.
-- Orders by user/status.
-- Payments by order/status and creation time.
-- Refunds by payment.
-- Waitlists by event/status/position.
-- Coupon redemption lookup by user.
+## 3. Frontend optimization techniques
 
-The principle is to index columns used frequently by `WHERE`, `JOIN`, filtering and ordering operations while avoiding indiscriminate indexing that increases write cost.
+1. **Persistent application shell** — Navbar and mobile navigation remain mounted across route transitions.
+2. **Server Components first** — keep static/non-interactive UI on the server.
+3. **Client Components only where needed** — browser state, effects and event handlers stay client-side.
+4. **Suspense boundaries** — isolate client data/search islands from the page shell.
+5. **Localized loading UI** — avoid full-page loaders for small dynamic sections.
+6. **Parallel fetching** — avoid sequential API waterfalls.
+7. **Request deduplication/coalescing** — reuse identical in-flight or recently fetched data.
+8. **Server caching/revalidation** — cache read-heavy public data according to volatility.
+9. **Route prefetching** — use Next.js prefetching selectively for predictable navigation.
+10. **Image optimization** — `next/image`, responsive `sizes`, AVIF/WebP, explicit dimensions, lazy loading below the fold.
+11. **Bundle optimization** — remove unused dependencies and avoid shipping dashboard-only code to public routes.
+12. **Dynamic imports** — use only for genuinely heavy, non-critical client modules.
+13. **Font optimization** — prefer `next/font`/self-hosted fonts over runtime external font requests.
+14. **Core/native JavaScript** — use `fetch`, `AbortController`, `IntersectionObserver`, passive listeners and similar browser primitives when they solve a small problem cleanly.
+15. **Avoid unnecessary client state** — do not introduce a state library when native/browser/framework primitives are sufficient.
 
-### Persistent navigation and route transitions
+### Core JavaScript rule
 
-The public application's top Navbar is now mounted at the root layout so it survives client-side route transitions instead of being destroyed and recreated for every page.
+Core JS is an optimization tool, not a replacement for good architecture. Native APIs are useful for small, local problems such as request cancellation, event handling, visibility detection and request coalescing. They should not replace Next.js routing, Server Components or caching simply because handwritten JavaScript appears faster.
 
-The existing page-level Navbar instances are kept temporarily for compatibility but are visually disabled; the root instance owns the persistent navigation chrome.
+## 4. Backend/API optimization techniques
 
-The mobile bottom navigation is already mounted from the root layout and therefore remains persistent across route transitions.
+1. Profile endpoint duration.
+2. Measure database time separately from application time.
+3. Use `EXPLAIN ANALYZE` for slow PostgreSQL queries.
+4. Add targeted indexes for `WHERE`, `JOIN`, filtering and ordering patterns.
+5. Avoid `SELECT *` when a smaller projection is sufficient.
+6. Eliminate N+1 queries.
+7. Paginate all potentially large collections.
+8. Return compact DTOs rather than oversized database records.
+9. Run independent DB/external operations concurrently.
+10. Add explicit timeouts around third-party services.
+11. Keep non-critical work out of the critical response path.
+12. Reuse/pool database connections appropriately for serverless workloads.
 
-### Dynamic data vs page shell
+## 5. Database optimization
 
-Navigation should not be treated as a full browser reload. The intended architecture is:
+The performance index migration targets the application's main read patterns: event discovery, event/category/host/venue relationships, schedules, registrations, tickets, check-ins, orders, payments, refunds, waitlists and coupon redemption.
 
-```text
-Persistent application shell
-├── Navbar / bottom navigation
-├── Static page structure
-└── Route-specific data
-    ├── cached public data
-    └── dynamic user/transactional data
-```
+Indexing principle: optimize actual access patterns without indiscriminately indexing every column because indexes also add write/storage overhead.
 
-Public categories and category event previews now use server-side `unstable_cache` with short revalidation. This prevents every navigation to `/categories` from executing the same database queries.
+## 6. Caching strategy
 
-### Request coalescing for profile state
-
-The Navbar previously requested `/api/profile` with `cache: 'no-store'` every time a page-level Navbar mounted. A lightweight native browser `fetch` request-coalescing layer now caches that non-transactional profile response for 60 seconds and deduplicates simultaneous requests.
-
-The cache is invalidated by the existing `tss:profile-updated` event. This keeps account state reasonably fresh without turning every route transition into another profile API round trip.
-
-This is intentionally implemented with native browser APIs rather than adding a heavy client-state dependency solely for one small request.
-
-### Route-wide loader removal
-
-The account route-group `loading.tsx` was removed because it replaced the entire page with a loading screen during navigation. The preferred behavior is to preserve the existing UI during a client transition and use localized skeletons only where a genuinely dynamic section needs one.
-
-## 3. Frontend optimization roadmap
-
-### Server Components first
-
-Use React Server Components for non-interactive pages and sections. Keep Client Components only where browser state, event handlers, effects or browser APIs are required.
-
-Benefits:
-
-- Less JavaScript shipped to the browser.
-- Less hydration work.
-- Fewer client-side API waterfalls.
-- Better initial rendering and SEO.
-
-### Eliminate request waterfalls
-
-Avoid:
-
-```text
-Page → API A → API B → API C
-```
-
-Prefer independent requests in parallel:
-
-```text
-Page → ┬→ API A
-       ├→ API B
-       └→ API C
-```
-
-Where possible, fetch data on the server and render the result directly instead of making the browser fetch data that the server already needs.
-
-### Streaming and localized loading UI
-
-Use `loading.tsx` or skeleton components only at the appropriate route/section boundary. Do not use a global full-page spinner for every navigation when only one data region is dynamic.
-
-### Image optimization
-
-Use `next/image` for application-managed images and apply:
-
-- Responsive `sizes`.
-- Explicit dimensions/aspect ratios.
-- AVIF/WebP.
-- Appropriate quality settings.
-- Priority loading only for the true LCP image.
-- Lazy loading for below-the-fold imagery.
-- Properly sized thumbnails instead of downloading original assets.
-
-### JavaScript bundle control
-
-Audit client bundles and remove unnecessary dependencies. Use dynamic imports only for genuinely heavy, non-critical UI. Avoid loading dashboard-only libraries into the public application.
-
-### Native/core JavaScript
-
-Prefer browser-native APIs when they solve a small performance problem cleanly: `fetch`, `AbortController`, `IntersectionObserver`, `requestIdleCallback` and passive event listeners can reduce dependency overhead.
-
-Do **not** replace a framework capability with hand-written JavaScript merely for perceived speed. Core JavaScript is appropriate when the problem is small and well-defined; application architecture, caching and rendering strategy usually have much larger performance impact.
-
-### Font optimization
-
-Prefer `next/font` with self-hosted fonts over runtime Google Fonts requests. This reduces external round trips and improves font rendering stability.
-
-### Route prefetching
-
-Use Next.js link prefetching for predictable navigation, but avoid aggressive prefetching of large data sets on constrained mobile connections.
-
-## 4. Backend/API optimization
-
-### Query efficiency
-
-For every slow endpoint:
-
-1. Measure total request duration.
-2. Measure database duration.
-3. Inspect the generated query.
-4. Run `EXPLAIN ANALYZE` where appropriate.
-5. Add or refine indexes only when justified.
-6. Select only required columns.
-7. Eliminate N+1 queries.
-8. Paginate large collections.
-
-Avoid `SELECT *` for APIs where the UI only needs a small subset of fields.
-
-### Pagination
-
-Never return unbounded collections from production endpoints. Use limit/offset or cursor pagination depending on the access pattern.
-
-### Response-size reduction
-
-Return compact DTOs/API responses. Do not send large nested database records when a summary is enough for the current UI.
-
-### Parallel backend work
-
-Independent database and external-service operations should run concurrently. Non-critical work should not block the initial response.
-
-### External API latency
-
-Measure third-party dependencies independently. Payment, OTP, analytics, maps, email and other integrations should have explicit timeouts and should not unnecessarily block public page rendering.
-
-## 5. Caching strategy
-
-Caching should be based on data volatility.
-
-| Data | Recommended strategy |
+| Data | Strategy |
 |---|---|
 | Categories | Long cache / revalidation |
 | Public event discovery | Short/medium revalidation |
@@ -188,19 +89,20 @@ Caching should be based on data volatility.
 | Payments | Never serve stale transactional state |
 | Authentication/session | Dynamic |
 
-For public data, Next.js server-side caching/revalidation can prevent every visitor from executing the same database query.
+## 7. Performance anti-patterns to avoid
 
-## 6. Database connection management
-
-For serverless workloads, avoid opening a new database connection unnecessarily on every request. Reuse clients where safe and configure connection pooling appropriately for the database/provider.
-
-## 7. CDN and static delivery
-
-Static assets should be served through the CDN with long-lived caching for immutable files. User-facing assets should be compressed and versioned. Large media should not unnecessarily pass through application server functions.
+- Full-page loading spinner for every route transition.
+- Refetching static/public data on every navigation.
+- Sequential requests that could run in parallel.
+- Unbounded database queries.
+- `SELECT *` for UI endpoints.
+- N+1 database access.
+- Blocking initial rendering on analytics or other non-critical third-party calls.
+- Large original images for small cards.
+- Making an entire page a Client Component unnecessarily.
+- Adding libraries when a native browser API is sufficient.
 
 ## 8. Core Web Vitals targets
-
-Use these as production performance guardrails:
 
 | Metric | Target |
 |---|---:|
@@ -209,11 +111,11 @@ Use these as production performance guardrails:
 | CLS | < 0.1 |
 | TTFB | Preferably < 800ms |
 
-Measure separately on mobile and desktop.
+Measure mobile and desktop separately.
 
 ## 9. Observability
 
-Every important API should expose enough telemetry to identify the slow layer:
+For important endpoints capture:
 
 ```text
 request
@@ -224,7 +126,7 @@ request
 └── HTTP status
 ```
 
-The objective is to turn a statement such as “the website is slow” into a measurable diagnosis such as:
+A useful diagnosis converts “the website is slow” into a measurable bottleneck such as:
 
 ```text
 /events       1,850 ms
@@ -233,29 +135,27 @@ The objective is to turn a statement such as “the website is slow” into a me
   └─ serialize   80 ms
 ```
 
-## 10. Performance debugging workflow
+## 10. Debugging workflow
 
-1. Reproduce the slow page.
-2. Open the browser Network panel.
-3. Identify the slowest document/API request.
+1. Reproduce the slow navigation.
+2. Inspect the browser Network waterfall.
+3. Determine whether the slow request is a document, RSC request, API call, image or third-party resource.
 4. Measure TTFB and response size.
-5. Trace the request into the backend.
-6. Measure database and external-service time.
-7. Inspect query plans.
-8. Optimize the highest-impact bottleneck.
-9. Rebuild and deploy.
+5. Trace API/database execution.
+6. Inspect query plans.
+7. Optimize the highest-impact bottleneck.
+8. Build in production mode.
+9. Deploy.
 10. Compare before/after metrics.
 
-## 11. Interview-ready explanation
+## 11. Interview-ready answer
 
-**Question: How would you optimize a slow Next.js + PostgreSQL application?**
+**How would you fix a Next.js + PostgreSQL application where every navigation shows a loader and feels slow?**
 
-A strong answer:
+> “First I would determine whether the navigation is actually doing a browser reload or whether the Next.js route transition is re-executing server data fetching. I would inspect the Network waterfall and identify which requests repeat. I would move persistent navigation and static UI into layouts so they survive route transitions, keep only truly dynamic data dynamic, cache public read-heavy data with appropriate revalidation, and deduplicate repeated requests. I would isolate client-side search/filter logic behind Suspense instead of making the entire page client-rendered. On the backend I would profile database queries, add targeted indexes, eliminate N+1 queries, paginate large collections and parallelize independent work. Finally I would validate TTFB, LCP, INP, payload size and API latency before and after the changes.”
 
-> “I would first establish a performance baseline instead of optimizing blindly. I would inspect the browser waterfall and measure TTFB, LCP, payload sizes and API latency. On the backend I would profile database queries, use `EXPLAIN ANALYZE`, add targeted indexes, eliminate N+1 queries and paginate large datasets. I would parallelize independent requests and cache read-heavy public data with appropriate revalidation. On the frontend I would prefer Server Components, reduce client JavaScript, optimize images and fonts, lazy-load below-the-fold content, and use streaming/loading states. I would also keep persistent application chrome outside route-specific rendering so navigation does not recreate it. Finally I would validate the changes using Core Web Vitals and production telemetry.”
-
-## 12. Important engineering principle
+## 12. Engineering principle
 
 **Measure → Identify bottleneck → Optimize → Verify.**
 
-A performance change is not considered successful because the code looks faster. It is successful when measurable latency, payload size, rendering performance or user-perceived responsiveness improves without introducing correctness or security regressions.
+A performance change is successful only when measurable latency, payload size, rendering performance or user-perceived responsiveness improves without correctness or security regressions.
