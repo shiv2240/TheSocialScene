@@ -1,94 +1,191 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 @import "tailwindcss";
 
 @layer base {
   :root {
-    --background: #141217;
-    --foreground: #f7f3ea;
-    --card: #1d1a22;
-    --card-foreground: #ffffff;
-    --primary: #c85a3c; /* Official Logo Terracotta Rust */
-    --primary-foreground: #ffffff;
-    --secondary: #e59838; /* Warm Sunset Gold */
-    --secondary-foreground: #141217;
-    --accent: #2e4f41; /* Deep Mountain Forest Green */
-    --muted: #272330;
-    --muted-foreground: #a69faf;
-    --border: #332d3e;
-    --radius: 1.25rem;
+    /* Core 70s Sunwave Reference Palette */
+    --cream:   #ede4d0;
+    --cream-dark: #e0d5bc;
+    --rust:    #c93a2a;
+    --rust-dark: #a82f20;
+    --mustard: #d4963a;
+    --espresso:#1e1a14;
+    --sand:    #f7f0e3;
+    --charcoal:#2b2520;
+
+    --font-display: 'Bebas Neue', 'Impact', 'Arial Black', sans-serif;
+    --font-sub:     'Oswald', 'Arial Narrow', sans-serif;
+    --font-mono:    'IBM Plex Mono', 'Courier New', monospace;
+    --font-body:    'Plus Jakarta Sans', system-ui, sans-serif;
   }
 }
 
+/* Base Reset */
+* { box-sizing: border-box; }
+
 body {
-  background-color: #141217;
-  color: #f7f3ea;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--cream);
+  color: var(--espresso);
+  font-family: var(--font-body);
   overflow-x: hidden;
+  min-height: max(100vh, 100dvh);
 }
 
-/* Retro Vintage Stamp & Badge Styling (Matching Official Logo) */
-.retro-badge-ring {
-  border: 3px double rgba(200, 90, 60, 0.4);
-  box-shadow: 0 0 20px rgba(200, 90, 60, 0.15);
+/* ───────────────────── Typography ───────────────────── */
+.font-display { font-family: var(--font-display); letter-spacing: 0.02em; }
+.font-sub     { font-family: var(--font-sub); }
+.font-mono    { font-family: var(--font-mono); }
+.font-body    { font-family: var(--font-body); }
+
+/* Giant editorial 3D-shadow display text (reference: "70-80s" and "LOCATIONS") */
+.display-3d {
+  font-family: var(--font-display);
+  color: var(--rust);
+  text-shadow:
+    4px 5px 0px #8b2218,
+    8px 10px 0px rgba(30,26,20,0.18);
+  line-height: 0.88;
+  letter-spacing: 0.015em;
 }
 
-.retro-ribbon {
-  background: linear-gradient(90deg, #c85a3c 0%, #e06646 50%, #c85a3c 100%);
-  color: #ffffff;
-  clip-path: polygon(0 0, 100% 0, 96% 50%, 100% 100%, 0 100%, 4% 50%);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+.display-cream {
+  font-family: var(--font-display);
+  color: var(--cream);
+  text-shadow:
+    3px 4px 0px var(--rust-dark),
+    6px 8px 0px rgba(30,26,20,0.25);
+  line-height: 0.88;
+  letter-spacing: 0.015em;
 }
 
-/* Continuous Marquee Ticker (GoFlow Product Style) */
-@keyframes marquee {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-50%); }
+/* ───────────────────── Cards & Surfaces ───────────────────── */
+.retro-card {
+  background: var(--sand);
+  border: 1.5px solid rgba(30,26,20,0.15);
+  border-radius: 1rem;
+  box-shadow: 4px 5px 0px rgba(30,26,20,0.12);
+  transition: all 0.25s ease;
+}
+.retro-card:hover {
+  box-shadow: 6px 8px 0px rgba(30,26,20,0.2);
+  transform: translateY(-2px);
 }
 
-.animate-marquee {
-  display: flex;
-  width: 200%;
-  animation: marquee 25s linear infinite;
+/* ───────────────────── Retro Pill Buttons ───────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 1.1rem;
+  border-radius: 9999px;
+  border: 1.5px solid var(--espresso);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  background: transparent;
+  color: var(--espresso);
+}
+.pill:hover { background: var(--espresso); color: var(--cream); }
+
+.pill-rust {
+  border-color: var(--rust);
+  color: var(--rust);
+}
+.pill-rust:hover { background: var(--rust); color: var(--cream); }
+
+.pill-filled {
+  background: var(--rust);
+  color: var(--cream);
+  border-color: var(--rust);
+}
+.pill-filled:hover { background: var(--rust-dark); }
+
+/* ───────────────────── Nav & Dock ───────────────────── */
+.retro-nav {
+  background: rgba(237, 228, 208, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1.5px solid rgba(30,26,20,0.18);
 }
 
-/* Glassmorphism & Surface Utilities */
-.glass-card {
-  background: rgba(29, 26, 34, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-nav {
-  background: rgba(20, 18, 23, 0.92);
+.retro-dock {
+  background: rgba(237, 228, 208, 0.97);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1.5px solid rgba(30,26,20,0.15);
 }
 
-/* Parchment Light Card Overlay (Evenfonic & Moon Crush Reference) */
-.light-card-overlay {
-  background: #f7f3ea;
-  color: #1a1614;
-  border-radius: 1.75rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+/* ───────────────────── Divider ───────────────────── */
+.retro-rule {
+  border: none;
+  border-top: 1.5px solid rgba(30,26,20,0.2);
+  margin: 0;
 }
 
-/* Radiant Typography & Gradients */
-.gradient-text {
-  background: linear-gradient(135deg, #e06646 0%, #e59838 50%, #2e4f41 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+/* ───────────────────── Marquee ───────────────────── */
+@keyframes marquee {
+  0%   { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: 200%;
+  animation: marquee 28s linear infinite;
+  white-space: nowrap;
 }
 
-.gradient-terracotta {
-  background: linear-gradient(135deg, #c85a3c 0%, #e06646 100%);
+/* ───────────────────── Retro Form Elements ───────────────────── */
+.retro-input {
+  background: rgba(30,26,20,0.05);
+  border: 1.5px solid rgba(30,26,20,0.2);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--espresso);
+  outline: none;
+  transition: border-color 0.18s;
+  width: 100%;
 }
+.retro-input::placeholder { color: rgba(30,26,20,0.4); }
+.retro-input:focus { border-color: var(--rust); }
 
-.ambient-brand-glow {
+/* ───────────────────── Scrollbar ───────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ───────────────────── Mobile safe area ───────────────────── */
+.pb-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+
+/* ───────────────────── Grain Texture Overlay ───────────────────── */
+.grain::after {
+  content: '';
   position: absolute;
-  width: 550px;
-  height: 550px;
-  background: radial-gradient(circle, rgba(200, 90, 60, 0.24) 0%, rgba(229, 152, 56, 0.14) 45%, transparent 70%);
-  filter: blur(90px);
+  inset: 0;
   pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+  mix-blend-mode: multiply;
+  opacity: 0.4;
 }
+
+/* ───────────────────── Retro Link Underline ───────────────────── */
+.retro-link {
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+  transition: color 0.18s;
+}
+.retro-link:hover { color: var(--rust); }
+
+/* ───────────────────── Full-bleed section utilities ───────────────────── */
+.section-rust   { background: var(--rust); color: var(--cream); }
+.section-cream  { background: var(--cream); color: var(--espresso); }
+.section-sand   { background: var(--sand); color: var(--espresso); }
+.section-espresso { background: var(--espresso); color: var(--cream); }
+.section-mustard{ background: var(--mustard); color: var(--espresso); }

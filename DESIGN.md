@@ -96,7 +96,7 @@ Use this reference when requesting UI modifications or feeding layout context to
 1. **Header Filter Bar:**
    - Text Search Input (filters title, description, city, venue).
    - Category Pills (horizontal scrollable tags: `All`, `Treks`, `Fitness`, `Music`, `Networking`).
-   - City Dropdown (`Bengaluru`, `Delhi NCR`, `Mumbai`).
+   - City Dropdown (`Bengaluru`).
 2. **Events Grid Container:**
    - 3-column responsive layout (`grid-cols-1 md:grid-cols-2 lg:grid-cols-3`).
    - Empty state fallback illustration when no events match search filters.

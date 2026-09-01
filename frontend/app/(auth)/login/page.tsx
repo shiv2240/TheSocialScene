@@ -29,8 +29,12 @@ function LoginContent() {
   const establishSession = async () => {
     const auth = getFirebaseAuth();
     const idToken = await auth.currentUser?.getIdToken(true);
-    if (!idToken) throw new Error('Unable to establish Firebase authentication.');
-    const response = await fetch('/api/auth/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }) });
+    if (!idToken) throw new Error('Unable to establish authentication.');
+    const response = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || 'Unable to establish your session.');
   };
@@ -51,7 +55,10 @@ function LoginContent() {
       setEmailLoading(true);
       setError('');
       try {
-        const storedEmail = window.localStorage.getItem('tss_email_for_signin') || window.prompt('Enter the email address you used to request the login link:') || '';
+        const storedEmail =
+          window.localStorage.getItem('tss_email_for_signin') ||
+          window.prompt('Enter the email address you used to request the login link:') ||
+          '';
         if (!storedEmail) throw new Error('Email address is required to complete sign-in.');
         await signInWithEmailLink(auth, storedEmail.trim(), window.location.href);
         window.localStorage.removeItem('tss_email_for_signin');
@@ -71,7 +78,11 @@ function LoginContent() {
     setError('');
     setLoading(true);
     try {
-      const response = await fetch('/api/auth/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
+      const response = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Unable to send OTP.');
       sessionStorage.setItem('tss_auth_next', next);
@@ -92,7 +103,10 @@ function LoginContent() {
     try {
       const normalizedEmail = email.trim().toLowerCase();
       if (!normalizedEmail) throw new Error('Please enter your email address.');
-      const actionCodeSettings = { url: `${window.location.origin}/login?next=${encodeURIComponent(next)}`, handleCodeInApp: true };
+      const actionCodeSettings = {
+        url: `${window.location.origin}/login?next=${encodeURIComponent(next)}`,
+        handleCodeInApp: true
+      };
       await sendSignInLinkToEmail(getFirebaseAuth(), normalizedEmail, actionCodeSettings);
       window.localStorage.setItem('tss_email_for_signin', normalizedEmail);
       setEmailSent(true);
@@ -119,25 +133,134 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#090a0f] text-gray-100 flex flex-col">
+    <div className="min-h-screen bg-[#0e0d12] text-[#f4ebd9] flex flex-col selection:bg-[#cb4b31] selection:text-white pb-24 md:pb-0">
       <Navbar />
-      <main className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="gradient-glow top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-        <div className="w-full max-w-md glass-card p-8 rounded-3xl border border-gray-800 shadow-2xl relative z-10 space-y-6">
-          <div className="text-center space-y-3"><div className="inline-flex items-center gap-2"><div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-purple-500/20"><Sparkles className="w-5 h-5 text-white" /></div></div><h1 className="text-2xl font-extrabold text-white">Join The Social Scene</h1><p className="text-xs text-gray-400">Use mobile OTP or passwordless email login.</p></div>
-          <form onSubmit={handlePhoneSubmit} className="space-y-4"><div className="space-y-2"><label htmlFor="phone" className="text-xs font-semibold text-gray-300 uppercase tracking-wider block">Mobile number</label><div className="flex gap-2"><div className="px-4 py-3.5 rounded-xl bg-gray-900/90 border border-gray-700/80 text-sm font-bold text-gray-300">+91</div><input id="phone" type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" className="flex-1 px-4 py-3.5 rounded-xl bg-gray-900/90 border border-gray-700/80 text-sm font-semibold text-white placeholder-gray-600 focus:outline-none focus:border-purple-500" required /></div></div><button type="submit" disabled={loading || phone.length !== 10} className="w-full py-4 rounded-xl gradient-bg text-white font-bold text-sm shadow-xl shadow-purple-500/25 hover:shadow-purple-500/40 transition-all flex items-center justify-center gap-2 disabled:opacity-60">{loading ? <span className="animate-pulse">Sending OTP...</span> : <><Smartphone className="w-4 h-4" /><span>Continue with Mobile OTP</span><ArrowRight className="w-4 h-4" /></>}</button></form>
-          <div className="relative py-2"><div className="border-t border-gray-800" /><span className="absolute left-1/2 -translate-x-1/2 -top-2 px-3 bg-[#12131a] text-[10px] uppercase tracking-widest text-gray-600">or</span></div>
-          <form onSubmit={handleEmailSubmit} className="space-y-3"><label htmlFor="email" className="text-xs font-semibold text-gray-300 uppercase tracking-wider block">Email login</label><input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3.5 rounded-xl bg-gray-900/90 border border-gray-700/80 text-sm font-semibold text-white placeholder-gray-600 focus:outline-none focus:border-purple-500" required /><button type="submit" disabled={emailLoading || !email.trim()} className="w-full py-3.5 rounded-xl border border-gray-700 bg-gray-900/70 text-white font-bold text-sm hover:bg-gray-800 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"><Mail className="w-4 h-4" /> {emailLoading ? 'Sending login link...' : 'Email me a login link'}</button>{emailSent && <p className="text-xs text-emerald-400 text-center">Login link sent. Check your inbox.</p>}</form>
-          <div className="relative py-1"><div className="border-t border-gray-800" /><span className="absolute left-1/2 -translate-x-1/2 -top-2 px-3 bg-[#12131a] text-[10px] uppercase tracking-widest text-gray-600">or</span></div>
-          <button type="button" onClick={handleGoogle} disabled={googleLoading} className="w-full py-3.5 rounded-xl border border-gray-700 bg-gray-900/70 text-white font-bold text-sm hover:bg-gray-800 transition-colors disabled:opacity-60">{googleLoading ? 'Connecting to Google...' : 'Continue with Google'}</button>
-          {error && <p className="text-xs text-red-400 text-center">{error}</p>}
-          <div className="flex items-center justify-center gap-2 text-xs text-gray-500 pt-4 border-t border-gray-800"><ShieldCheck className="w-4 h-4 text-purple-400" /><span>Secure authentication powered by 2Factor + Firebase</span></div>
-          <div className="text-center pt-1"><Link href="/" className="text-xs font-semibold text-gray-500 hover:text-white transition-colors">Back to home</Link></div>
+
+      <main className="flex-1 flex items-center justify-center px-4 py-12 relative overflow-hidden">
+        <div className="w-full max-w-md bg-[#16151c] p-8 sm:p-10 rounded-3xl border border-white/20 shadow-2xl relative z-10 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-14 h-14 rounded-2xl overflow-hidden border border-white/20 mx-auto p-0.5 bg-[#cb4b31] shadow-sm">
+              <img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover rounded-xl" />
+            </div>
+            <span className="font-sans-clean text-[10px] text-[#e5a83b] font-extrabold uppercase tracking-widest block">
+              ● STEP INTO THE SCENE
+            </span>
+            <h1 className="font-puffy text-3xl sm:text-4xl text-white uppercase">
+              JOIN THE SCENE
+            </h1>
+            <p className="font-sans-clean text-xs text-[#f4ebd9]/70 font-semibold">
+              Log in with mobile OTP or passwordless magic email link.
+            </p>
+          </div>
+
+          {/* Phone Form */}
+          <form onSubmit={handlePhoneSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="phone" className="font-sans-clean text-[11px] font-extrabold text-[#f4ebd9] block uppercase tracking-wider">
+                Mobile Number
+              </label>
+              <div className="flex gap-2">
+                <div className="px-4 py-3 rounded-2xl bg-white/5 border border-white/15 text-xs font-bold text-white font-sans-clean">
+                  +91
+                </div>
+                <input
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="9876543210"
+                  className="flex-1 px-4 py-3 rounded-2xl bg-white/5 border border-white/15 text-xs font-semibold text-white placeholder-gray-500 focus:outline-none focus:border-[#cb4b31] focus:bg-[#16151c] font-sans-clean transition-colors"
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || phone.length !== 10}
+              className="w-full py-3.5 rounded-full bg-[#cb4b31] hover:bg-[#e05338] text-white font-sans-clean font-extrabold text-xs tracking-wider uppercase shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60 border border-white/20"
+            >
+              {loading ? (
+                <span className="animate-pulse">Sending OTP...</span>
+              ) : (
+                <>
+                  <Smartphone className="w-4 h-4" />
+                  <span>[ Continue with Mobile OTP ↗ ]</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="relative py-1">
+            <div className="border-t border-white/10" />
+            <span className="absolute left-1/2 -translate-x-1/2 -top-2 px-3 bg-[#16151c] text-[10px] font-sans-clean font-extrabold text-[#f4ebd9]/40 uppercase tracking-wider">
+              or
+            </span>
+          </div>
+
+          {/* Email Form */}
+          <form onSubmit={handleEmailSubmit} className="space-y-3">
+            <label htmlFor="email" className="font-sans-clean text-[11px] font-extrabold text-[#f4ebd9] block uppercase tracking-wider">
+              Email Address
+            </label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/15 text-xs font-semibold text-white placeholder-gray-500 focus:outline-none focus:border-[#cb4b31] focus:bg-[#16151c] font-sans-clean transition-colors"
+              required
+            />
+            <button
+              type="submit"
+              disabled={emailLoading || !email.trim()}
+              className="w-full py-3 rounded-full border border-white/20 bg-white/5 text-[#f4ebd9] font-sans-clean font-extrabold text-xs tracking-wider uppercase hover:bg-white hover:text-[#0e0d12] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              <Mail className="w-4 h-4 text-[#cb4b31]" />
+              {emailLoading ? 'Sending link...' : '[ Email Login Link ]'}
+            </button>
+            {emailSent && <p className="text-xs text-emerald-400 text-center font-sans-clean font-bold">Login link sent to your inbox.</p>}
+          </form>
+
+          <div className="relative py-1">
+            <div className="border-t border-white/10" />
+            <span className="absolute left-1/2 -translate-x-1/2 -top-2 px-3 bg-[#16151c] text-[10px] font-sans-clean font-extrabold text-[#f4ebd9]/40 uppercase tracking-wider">
+              or
+            </span>
+          </div>
+
+          {/* Google Sign-in */}
+          <button
+            type="button"
+            onClick={handleGoogle}
+            disabled={googleLoading}
+            className="w-full py-3 rounded-full border border-white/20 bg-white/5 text-white font-sans-clean font-extrabold text-xs tracking-wider uppercase hover:bg-white/15 transition-colors disabled:opacity-60"
+          >
+            [ Continue with Google ]
+          </button>
+
+          {error && <p className="text-xs text-red-400 text-center font-sans-clean font-bold">{error}</p>}
+
+          <div className="flex items-center justify-center gap-2 text-[11px] text-[#f4ebd9]/60 pt-3 border-t border-white/10 font-sans-clean font-semibold">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Secure 2Factor + Firebase Authentication</span>
+          </div>
         </div>
       </main>
+
       <Footer />
     </div>
   );
 }
 
-export default function LoginPage() { return <Suspense fallback={<div className="min-h-screen bg-[#090a0f] text-white flex items-center justify-center text-sm">Loading...</div>}><LoginContent /></Suspense>; }
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0e0d12] text-[#f4ebd9] flex items-center justify-center text-xs">Loading...</div>}>
+      <LoginContent />
+    </Suspense>
+  );
+}

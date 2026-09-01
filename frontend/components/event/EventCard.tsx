@@ -2,9 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Calendar, MapPin, Users, ArrowRight } from 'lucide-react';
+import { Calendar, MapPin, Users, Sparkles } from 'lucide-react';
 import { EventItem } from '@backend/types/database.types';
-import { formatDate, formatTime, formatCurrency } from '@/lib/utils';
+import { formatDate, formatTime, formatMonthUpper, formatCurrency } from '@/lib/utils';
 
 interface EventCardProps {
   event: EventItem;
@@ -15,101 +15,92 @@ export function EventCard({ event }: EventCardProps) {
   const isSoldOut = spotsRemaining === 0 || !event.registration_open;
 
   const eventDate = new Date(event.start_at);
-  const dayNum = eventDate.getDate();
-  const monthStr = eventDate.toLocaleString('default', { month: 'short' }).toUpperCase();
+  const dayNum = isNaN(eventDate.getTime()) ? '' : eventDate.getDate();
+  const monthStr = formatMonthUpper(eventDate);
 
   return (
-    <div className="group rounded-3xl glass-card border border-white/10 overflow-hidden hover:border-[#ff573d]/50 hover:shadow-2xl hover:shadow-[#ff573d]/15 transition-all duration-300 flex flex-col h-full relative">
-      <div className="relative h-60 w-full overflow-hidden bg-[#181622]">
+    <article className="group bg-[#f7f0e3] rounded-2xl overflow-hidden border-2 border-[#1e1a14] hover:shadow-[5px_6px_0px_#1e1a14] transition-all duration-300 flex flex-col h-full">
+      {/* Cover Image */}
+      <div className="relative h-52 sm:h-60 overflow-hidden bg-[#e0d5bc] border-b-2 border-[#1e1a14]">
         {event.cover_image ? (
           <img
             src={event.cover_image}
             alt={event.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-[#181622] text-xs font-semibold text-gray-500">
-            No cover image
+          <div className="w-full h-full flex items-center justify-center font-mono text-[10px] uppercase tracking-widest text-[#1e1a14]/40">
+            [ no image ]
           </div>
         )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1e1a14]/60 via-transparent to-transparent" />
 
-        <div className="absolute top-3 right-3 w-12 h-12 rounded-full gradient-coral flex flex-col items-center justify-center text-white font-extrabold text-xs shadow-lg border border-white/20 z-10">
-          <span className="text-[13px] leading-none">{dayNum}</span>
-          <span className="text-[9px] tracking-wider uppercase font-semibold leading-none mt-0.5">{monthStr}</span>
+        {/* Top pills */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
+          {event.category ? (
+            <span className="font-mono text-[9px] font-bold uppercase tracking-widest bg-[#f7f0e3] text-[#1e1a14] px-3 py-1 rounded-full border border-[#1e1a14]">
+              ● {event.category.name}
+            </span>
+          ) : <div />}
+          <span className="font-mono text-[9px] font-bold uppercase tracking-widest bg-[#c93a2a] text-[#f7f0e3] px-3 py-1 rounded-full border border-[#1e1a14] flex items-center gap-1" suppressHydrationWarning>
+            <Calendar className="w-2.5 h-2.5" />{dayNum} {monthStr}
+          </span>
         </div>
 
-        {event.category && (
-          <span className="absolute top-3 left-3 px-3.5 py-1 rounded-full text-[11px] font-bold bg-[#121118]/85 backdrop-blur-md text-[#ffaa00] border border-[#ffaa00]/30 shadow-md">
-            {event.category.name}
-          </span>
-        )}
-
-        <div className="absolute bottom-3 right-3 px-4 py-1.5 rounded-full text-xs font-black bg-white text-[#121118] shadow-xl font-mono">
+        {/* Price */}
+        <div className="absolute bottom-3 right-3 font-mono text-[11px] font-bold bg-[#d4963a] text-[#1e1a14] px-3 py-1 rounded-full border border-[#1e1a14]" suppressHydrationWarning>
           {formatCurrency(event.price, event.currency)}
         </div>
 
+        {/* Status */}
         {isSoldOut ? (
-          <span className="absolute bottom-3 left-3 px-3 py-1 rounded-full text-xs font-bold bg-red-950/90 text-red-300 border border-red-500/40 backdrop-blur-md">
+          <span className="absolute bottom-3 left-3 font-mono text-[9px] font-bold bg-[#1e1a14] text-[#f7f0e3] px-3 py-1 rounded-full uppercase tracking-widest">
             Sold Out
           </span>
-        ) : (
-          spotsRemaining < 30 && (
-            <span className="absolute bottom-3 left-3 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#ff573d]/90 text-white backdrop-blur-md shadow-md flex items-center gap-1">
-              <Users className="w-3 h-3" /> Only {spotsRemaining} left
-            </span>
-          )
-        )}
+        ) : spotsRemaining < 25 ? (
+          <span className="absolute bottom-3 left-3 font-mono text-[9px] font-bold bg-[#c93a2a] text-[#f7f0e3] px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-1">
+            <Sparkles className="w-2.5 h-2.5" /> {spotsRemaining} left
+          </span>
+        ) : null}
       </div>
 
-      <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-gray-400">
-              {event.registered_count} Attending
-            </span>
+      {/* Body */}
+      <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="font-mono text-[9px] font-bold uppercase tracking-widest text-[#c93a2a] flex items-center gap-1.5" suppressHydrationWarning>
+            {formatDate(event.start_at)} · {formatTime(event.start_at)}
           </div>
-
           <Link href={`/events/${event.slug}`}>
-            <h3 className="text-lg font-extrabold text-white group-hover:text-[#ff573d] transition-colors line-clamp-1">
+            <h3 style={{ fontFamily: 'Oswald, sans-serif' }} className="text-2xl sm:text-[28px] font-bold text-[#1e1a14] group-hover:text-[#c93a2a] transition-colors leading-tight tracking-wide">
               {event.title}
             </h3>
           </Link>
-
-          <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
-            {event.short_description}
-          </p>
-        </div>
-
-        <div className="pt-3 border-t border-white/10 space-y-2 text-xs text-gray-300">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-full bg-[#ff573d]/15 text-[#ff573d]">
-              <Calendar className="w-3.5 h-3.5" />
-            </div>
-            <span className="truncate font-medium">
-              {formatDate(event.start_at)} • {formatTime(event.start_at)}
-            </span>
-          </div>
-
           {event.venue && (
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-full bg-[#ffaa00]/15 text-[#ffaa00]">
-                <MapPin className="w-3.5 h-3.5" />
-              </div>
-              <span className="truncate font-medium text-gray-400">
-                {event.venue.name}, {event.venue.city}
-              </span>
-            </div>
+            <p className="font-mono text-[10px] text-[#1e1a14]/60 flex items-center gap-1">
+              <MapPin className="w-3 h-3 text-[#c93a2a] shrink-0" />
+              {event.venue.name}, {event.venue.city}
+            </p>
+          )}
+          {event.short_description && (
+            <p className="font-body text-xs text-[#1e1a14]/70 line-clamp-2 leading-relaxed pt-0.5">
+              {event.short_description}
+            </p>
           )}
         </div>
 
-        <Link
-          href={`/events/${event.slug}`}
-          className="w-full mt-2 py-3 px-4 rounded-2xl gradient-coral text-xs font-extrabold text-white shadow-lg shadow-[#ff573d]/20 group-hover:shadow-[#ff573d]/40 group-hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 transition-all"
-        >
-          {isSoldOut ? 'View Event Details' : 'Reserve Ticket'}
-          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-        </Link>
+        <div className="flex items-center justify-between pt-3 border-t border-[#1e1a14]/12">
+          <span className="font-mono text-[10px] text-[#1e1a14]/60 flex items-center gap-1">
+            <Users className="w-3 h-3 text-[#d4963a]" />
+            {event.registered_count} going
+          </span>
+          <Link
+            href={`/events/${event.slug}`}
+            className="pill pill-rust"
+          >
+            {isSoldOut ? '[ View ]' : '[ Get Pass ↗ ]'}
+          </Link>
+        </div>
       </div>
-    </div>
+    </article>
   );
 }

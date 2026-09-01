@@ -5,25 +5,38 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const MONTH_NAMES_UPPER = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+export function formatMonthUpper(dateInput: Date | string): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
+  return MONTH_NAMES_UPPER[d.getMonth()] || '';
+}
+
 export function formatDate(isoString: string): string {
   if (!isoString) return '';
-  const date = new Date(isoString);
-  return new Intl.DateTimeFormat('en-IN', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  const dayName = DAY_NAMES[d.getDay()];
+  const dayNum = d.getDate();
+  const monthName = MONTH_NAMES[d.getMonth()];
+  const year = d.getFullYear();
+  return `${dayName}, ${dayNum} ${monthName} ${year}`;
 }
 
 export function formatTime(isoString: string): string {
   if (!isoString) return '';
-  const date = new Date(isoString);
-  return new Intl.DateTimeFormat('en-IN', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).format(date);
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  let hours = d.getHours();
+  const minutes = d.getMinutes();
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+  return `${hours}:${minutesStr} ${ampm}`;
 }
 
 export function formatCurrency(amount: number, currency: string = 'INR'): string {

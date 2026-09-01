@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { Resend } from 'resend';
 
 export const runtime = 'nodejs';
 
@@ -95,7 +96,72 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    // ─── Fire-and-forget admin notification email ────────────────────────────
+    if (process.env.RESEND_API_KEY) {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const appId = application?.id ?? 'N/A';
+      const row = (field: string, value: string | null | undefined) =>
+        value ? `<tr><td style="padding:6px 12px;color:#1e1a14;font-weight:700;font-size:11px;white-space:nowrap;vertical-align:top;text-transform:uppercase;letter-spacing:0.08em;">${field}</td><td style="padding:6px 12px;color:#2b2520;font-size:12px;vertical-align:top;">${value}</td></tr>` : '';
+
+      resend.emails.send({
+        from: 'The Social Scene <noreply@thesocialscene.club>',
+        to:   ['support@thesocialscene.club'],
+        subject: `🎉 New Host Application — ${data.full_name} (${data.city})`,
+        html: `
+          <div style="font-family:'Helvetica Neue',Arial,sans-serif;background:#ede4d0;padding:32px;">
+            <div style="max-width:560px;margin:0 auto;background:#f7f0e3;border:2px solid #1e1a14;border-radius:16px;overflow:hidden;">
+              <!-- Header -->
+              <div style="background:#c93a2a;padding:24px 28px;">
+                <p style="margin:0;font-size:10px;color:rgba(247,240,227,0.7);text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">● The Social Scene</p>
+                <h1 style="margin:6px 0 0;font-size:26px;color:#f7f0e3;letter-spacing:0.03em;font-weight:900;">NEW HOST APPLICATION</h1>
+              </div>
+
+              <!-- Body -->
+              <div style="padding:24px 28px;">
+                <p style="margin:0 0 16px;font-size:12px;color:#1e1a14;">A new host application has been submitted. Review the details below and approve or reject in your Supabase dashboard.</p>
+                <table style="width:100%;border-collapse:collapse;background:#ede4d0;border-radius:10px;overflow:hidden;border:1.5px solid rgba(30,26,20,0.15);">
+                  <tbody>
+                    ${row('Name',       data.full_name)}
+                    ${row('Email',      data.email)}
+                    ${row('Phone',      data.phone)}
+                    ${row('City',       data.city)}
+                    ${row('Org / Club', data.organization_name)}
+                    ${row('Freq.',      data.expected_frequency)}
+                    ${row('Event types', data.event_types.join(', '))}
+                    ${row('Instagram',  data.instagram)}
+                    ${row('Website',    data.website)}
+                  </tbody>
+                </table>
+
+                <div style="margin-top:16px;background:#ede4d0;border:1.5px solid rgba(30,26,20,0.15);border-radius:10px;padding:14px 16px;">
+                  <p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:0.08em;">Experience</p>
+                  <p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${data.experience || '—'}</p>
+                </div>
+                <div style="margin-top:12px;background:#ede4d0;border:1.5px solid rgba(30,26,20,0.15);border-radius:10px;padding:14px 16px;">
+                  <p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:0.08em;">Proposed Event</p>
+                  <p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${data.proposed_event || '—'}</p>
+                </div>
+                <div style="margin-top:12px;background:#ede4d0;border:1.5px solid rgba(30,26,20,0.15);border-radius:10px;padding:14px 16px;">
+                  <p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:0.08em;">Why they want to host</p>
+                  <p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${data.why_host}</p>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div style="padding:16px 28px;border-top:2px solid rgba(30,26,20,0.1);display:flex;justify-content:space-between;align-items:center;">
+                <p style="margin:0;font-size:10px;color:rgba(30,26,20,0.4);text-transform:uppercase;letter-spacing:0.08em;">Application ID: ${appId}</p>
+                <p style="margin:0;font-size:10px;color:rgba(30,26,20,0.4);">thesocialscene.club</p>
+              </div>
+            </div>
+          </div>
+        `,
+      }).catch((err: unknown) => {
+        console.error('[HOST APPLICATION][EMAIL]', err);
+      });
+    }
+
     return NextResponse.json({ application }, { status: 201 });
+
   } catch (error) {
     console.error('[HOST APPLICATION][POST]', error);
     return NextResponse.json({ error: 'Unable to submit your host application right now. Please try again.' }, { status: 500 });
