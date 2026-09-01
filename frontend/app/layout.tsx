@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { MobileNavigation } from '@/components/layout/MobileNavigation';
 
 export const metadata: Metadata = {
   title: 'THE SOCIAL SCENE | Sunset Runs · Rooftop Gigs · Outdoor Treks',
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning
       >
         {children}
+        <MobileNavigation />
       </body>
     </html>
   );
