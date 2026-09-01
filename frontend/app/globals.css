@@ -110,6 +110,7 @@ body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1.5px solid rgba(30,26,20,0.18);
+  transition: margin 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .retro-dock {
@@ -118,6 +119,9 @@ body {
   -webkit-backdrop-filter: blur(24px);
   border-top: 1.5px solid rgba(30,26,20,0.15);
 }
+
+/* The old route-specific dock is replaced by the universal mobile dock. */
+.retro-nav ~ .retro-dock { display: none !important; }
 
 /* ───────────────────── Divider ───────────────────── */
 .retro-rule {
@@ -189,3 +193,84 @@ body {
 .section-sand   { background: var(--sand); color: var(--espresso); }
 .section-espresso { background: var(--espresso); color: var(--cream); }
 .section-mustard{ background: var(--mustard); color: var(--espresso); }
+
+/* ───────────────────── Mobile polish ───────────────────── */
+@media (max-width: 767px) {
+  .retro-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    padding-top: 4px;
+  }
+
+  .retro-nav.retro-nav-scrolled {
+    margin: 8px 10px 0;
+    border: 1.5px solid rgba(30,26,20,0.22);
+    border-radius: 9999px;
+    box-shadow: 0 10px 28px rgba(30,26,20,0.14);
+    transform: translateY(0);
+  }
+
+  .retro-nav.retro-nav-scrolled > div {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .retro-nav.retro-nav-scrolled .group > div:first-child {
+    width: 42px;
+    height: 42px;
+  }
+
+  .retro-nav .group {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 7px;
+  }
+
+  .retro-nav .group > div:first-child {
+    width: 46px;
+    height: 46px;
+    margin-top: 1px;
+    flex: 0 0 auto;
+  }
+
+  .retro-nav .group > div:nth-child(2) {
+    min-width: 0;
+    max-width: min(47vw, 190px);
+    overflow: hidden;
+  }
+
+  .retro-nav .group > div:nth-child(2) > div:first-child {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .retro-nav .group > div:nth-child(2) > div:last-child {
+    font-size: 7px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .retro-nav .flex.md\:hidden {
+    flex: 0 0 auto;
+    gap: 5px;
+  }
+
+  .retro-nav .flex.md\:hidden a:last-child {
+    white-space: nowrap;
+  }
+
+  .retro-mobile-dock {
+    pointer-events: none;
+  }
+
+  .retro-mobile-dock > .mobile-dock-surface {
+    pointer-events: auto;
+    background: rgba(237, 228, 208, 0.97);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+}
