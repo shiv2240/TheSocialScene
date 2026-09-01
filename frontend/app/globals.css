@@ -3,18 +3,18 @@
 
 @layer base {
   :root {
-    --cream:   #ede4d0;
+    --cream: #ede4d0;
     --cream-dark: #e0d5bc;
-    --rust:    #c93a2a;
+    --rust: #c93a2a;
     --rust-dark: #a82f20;
     --mustard: #d4963a;
-    --espresso:#1e1a14;
-    --sand:    #f7f0e3;
-    --charcoal:#2b2520;
+    --espresso: #1e1a14;
+    --sand: #f7f0e3;
+    --charcoal: #2b2520;
     --font-display: 'Bebas Neue', 'Impact', 'Arial Black', sans-serif;
-    --font-sub:     'Oswald', 'Arial Narrow', sans-serif;
-    --font-mono:    'IBM Plex Mono', 'Courier New', monospace;
-    --font-body:    'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-sub: 'Oswald', 'Arial Narrow', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
 }
 
@@ -29,9 +29,9 @@ body {
 }
 
 .font-display { font-family: var(--font-display); letter-spacing: 0.02em; }
-.font-sub     { font-family: var(--font-sub); }
-.font-mono    { font-family: var(--font-mono); }
-.font-body    { font-family: var(--font-body); }
+.font-sub { font-family: var(--font-sub); }
+.font-mono { font-family: var(--font-mono); }
+.font-body { font-family: var(--font-body); }
 
 .display-3d {
   font-family: var(--font-display);
@@ -81,7 +81,7 @@ body {
 .pill-filled { background: var(--rust); color: var(--cream); border-color: var(--rust); }
 .pill-filled:hover { background: var(--rust-dark); }
 
-/* ───────────────────── Nav & Dock ───────────────────── */
+/* Nav & Dock */
 .retro-nav {
   background: rgba(237, 228, 208, 0.94);
   backdrop-filter: blur(16px);
@@ -90,8 +90,6 @@ body {
   transition: margin 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
-/* The Navbar already has the compact visual design; this makes it actually activate
-   from scroll without requiring another React state or changing the Navbar API. */
 @supports (animation-timeline: scroll()) {
   .retro-nav {
     animation: retro-nav-float linear both;
@@ -105,8 +103,6 @@ body {
     0% {
       margin-inline: 0;
       border-radius: 0;
-      border-bottom-left-radius: 0;
-      border-bottom-right-radius: 0;
       box-shadow: 0 0 0 rgba(30,26,20,0);
       transform: translateY(0) scale(1);
     }
@@ -121,11 +117,9 @@ body {
 
   .retro-nav > div { transition: padding 0.25s ease, max-width 0.25s ease; }
 
-  /* Shrink the page canvas slightly in sync with the floating navbar so the
-     visual margins remain balanced after the navbar becomes narrower. */
-  .retro-nav ~ main,
-  .retro-nav ~ [role="main"],
-  body > main {
+  /* Keep the page canvas visually aligned with the narrower floating navbar. */
+  .retro-nav + main,
+  .retro-nav + [role="main"] {
     animation: retro-content-compact linear both;
     animation-timeline: scroll(root block);
     animation-range: 0 140px;
@@ -145,6 +139,7 @@ body {
   border-top: 1.5px solid rgba(30,26,20,0.15);
 }
 
+/* Navbar owns its legacy mobile dock markup; the root MobileNavigation is the active dock. */
 .retro-nav ~ .retro-dock { display: none !important; }
 
 .retro-rule { border: none; border-top: 1.5px solid rgba(30,26,20,0.2); margin: 0; }
@@ -186,12 +181,7 @@ body {
   opacity: 0.4;
 }
 
-.retro-link {
-  text-decoration: none;
-  border-bottom: 1px solid currentColor;
-  padding-bottom: 1px;
-  transition: color 0.18s;
-}
+.retro-link { text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 1px; transition: color 0.18s; }
 .retro-link:hover { color: var(--rust); }
 
 .section-rust { background: var(--rust); color: var(--cream); }
@@ -224,8 +214,8 @@ body {
   .retro-nav .group > div:nth-child(2) { min-width: 0; max-width: min(47vw, 190px); overflow: hidden; }
   .retro-nav .group > div:nth-child(2) > div:first-child { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .retro-nav .group > div:nth-child(2) > div:last-child { font-size: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .retro-nav .flex.md\\:hidden { flex: 0 0 auto; gap: 5px; }
-  .retro-nav .flex.md\\:hidden a:last-child { white-space: nowrap; }
+  .retro-nav .flex.md\:hidden { flex: 0 0 auto; gap: 5px; }
+  .retro-nav .flex.md\:hidden a:last-child { white-space: nowrap; }
 
   .retro-mobile-dock { pointer-events: none; }
   .retro-mobile-dock > .mobile-dock-surface {
