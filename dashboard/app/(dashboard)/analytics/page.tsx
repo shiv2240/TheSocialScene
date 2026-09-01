@@ -92,7 +92,7 @@ export default function AnalyticsPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2"><Activity className="w-4 h-4 text-emerald-400" />Website Traffic</h2>
-            <p className="text-xs text-gray-400 mt-1">30-day user traffic, sessions, page views and top pages.</p>
+            <p className="text-xs text-gray-400 mt-1">30-day GA4 user traffic, sessions, page views and top pages.</p>
           </div>
           <div className="flex items-center gap-2 p-1 rounded-xl bg-gray-900 border border-gray-800 w-fit">
             <ProviderButton active={provider === 'google'} onClick={() => { setProvider('google'); void loadTraffic('google'); }}>Google Analytics</ProviderButton>
