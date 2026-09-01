@@ -15,6 +15,8 @@ const profileSchema = z.object({
 const onboardingSchema = z.object({ full_name: z.string().trim().min(2).max(100), age: z.coerce.number().int().min(13).max(120) });
 const profileSelect = 'id, full_name, username, age, onboarding_completed, phone, phone_verified, email, email_verified, marketing_opt_in, status, created_at';
 const privateCacheHeaders = { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' };
+const PROFILE_CACHE_TTL = 10_000;
+const profileCache = new Map<string, { profile: Record<string, unknown>; expiresAt: number }>();
 
 function makeUsername(fullName: string) {
   const base = fullName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '').slice(0, 24) || 'member';
@@ -25,6 +27,12 @@ function makeUsername(fullName: string) {
 export async function GET() {
   const user = await getCurrentFirebaseUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+
+  const cached = profileCache.get(user.uid);
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json({ profile: cached.profile }, { headers: privateCacheHeaders });
+  }
+  profileCache.delete(user.uid);
 
   const supabase = getSupabaseAdmin();
   let { data: profile, error } = await supabase.from('profiles').select(profileSelect).eq('firebase_uid', user.uid).maybeSingle();
@@ -44,6 +52,7 @@ export async function GET() {
     profile = created;
   }
 
+  profileCache.set(user.uid, { profile, expiresAt: Date.now() + PROFILE_CACHE_TTL });
   return NextResponse.json({ profile }, { headers: privateCacheHeaders });
 }
 
@@ -68,6 +77,7 @@ export async function POST(request: NextRequest) {
     if (error.code !== '23505') break;
   }
   if (!profile) return NextResponse.json({ error: lastError?.message || 'Unable to complete onboarding.' }, { status: lastError?.code === '23505' ? 409 : 400 });
+  profileCache.delete(user.uid);
   return NextResponse.json({ profile });
 }
 
@@ -92,5 +102,6 @@ export async function PATCH(request: NextRequest) {
     if (error.code === '23505') return NextResponse.json({ error: 'That email address is already associated with another account.' }, { status: 409 });
     return NextResponse.json({ error: `Unable to save profile: ${error.message}` }, { status: 400 });
   }
+  profileCache.delete(user.uid);
   return NextResponse.json({ profile });
 }
