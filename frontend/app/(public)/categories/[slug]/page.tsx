@@ -9,6 +9,10 @@ import { createClient } from '@/lib/supabase/server';
 
 interface CategoryPageProps { params: Promise<{ slug: string }> }
 
+// Category data is request-time Supabase data. Keep it out of `next build`.
+export const dynamic = 'force-dynamic';
+export const revalidate = 30;
+
 export default async function CategoryEventsPage({ params }: CategoryPageProps) {
   const { slug } = await params;
   const supabase = await createClient();
