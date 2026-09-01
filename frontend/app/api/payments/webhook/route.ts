@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { sendTicketConfirmationEmail } from '@/lib/email/ticket';
 
 export const runtime = 'nodejs';
 
@@ -14,12 +15,7 @@ async function refundRazorpayPayment(paymentId: string, amount: number) {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   if (!keyId || !keySecret) throw new Error('Razorpay credentials are not configured on the server.');
-  const response = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}/refund`, {
-    method: 'POST',
-    headers: { Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ amount }),
-    cache: 'no-store',
-  });
+  const response = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}/refund`, { method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }), cache: 'no-store' });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error?.description || 'Unable to refund late payment.');
   return body;
@@ -100,7 +96,9 @@ export async function POST(request: NextRequest) {
         const safePaymentMetadata = { id: payment.id, order_id: payment.order_id, amount: payment.amount, currency: payment.currency, status: payment.status, method: payment.method, created_at: payment.created_at };
         const { error: paymentError } = await supabase.from('payments').upsert({ order_id: order.id, provider: 'RAZORPAY', provider_payment_id: paymentId, razorpay_order_id: orderId, amount: order.amount, status: 'CAPTURED', raw_response: safePaymentMetadata }, { onConflict: 'provider_payment_id' });
         if (paymentError) throw paymentError;
-        console.info('[RAZORPAY WEBHOOK] payment confirmed', { eventId, eventType, orderId, paymentId, ticketCode: confirmation?.ticket_code });
+        const ticketCode = confirmation?.ticket_code as string | undefined;
+        if (ticketCode) await sendTicketConfirmationEmail({ registrationId: order.registration_id, ticketCode }).catch((error: unknown) => console.error('[TICKET EMAIL] Webhook email failed:', error));
+        console.info('[RAZORPAY WEBHOOK] payment confirmed', { eventId, eventType, orderId, paymentId, ticketCode });
       }
     } else if (eventType === 'payment.failed') {
       await supabase.from('orders').update({ status: 'FAILED', updated_at: new Date().toISOString() }).eq('id', order.id).neq('status', 'COMPLETED');
