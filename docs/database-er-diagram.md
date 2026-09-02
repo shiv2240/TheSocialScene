@@ -1,288 +1,166 @@
-# Database Entity-Relationship (ER) Diagram & Architecture Specification
+# The Social Scene — Current Database Model
 
-This document details the relational database schema for **The Social Scene** platform built on Supabase PostgreSQL.
+The production relational database is **PostgreSQL managed by Supabase**. This document describes the current application data model and its major relationships.
 
----
-
-## 🏗️ High-Level Relational Schema Overview
+## Architecture
 
 ```mermaid
 erDiagram
-    profiles ||--o{ user_roles : "possesses"
-    roles ||--o{ user_roles : "assigned"
-    roles ||--o{ role_permissions : "includes"
-    permissions ||--o{ role_permissions : "granted"
+    profiles ||--o{ user_roles : has
+    roles ||--o{ user_roles : assigns
+    roles ||--o{ role_permissions : grants
+    permissions ||--o{ role_permissions : contains
 
-    profiles ||--o{ host_applications : "submits"
-    profiles ||--o{ host_applications : "reviews"
+    profiles ||--o{ host_applications : submits
+    profiles ||--o{ host_applications : reviews
 
-    event_categories ||--o{ events : "classifies"
-    venues ||--o{ events : "hosts"
-    profiles ||--o{ events : "created_by"
-    events ||--o{ event_hosts : "has_hosts"
-    profiles ||--o{ event_hosts : "co_hosts"
-    events ||--o{ event_images : "media"
-    events ||--o{ event_schedules : "timeline"
+    event_categories ||--o{ events : classifies
+    venues ||--o{ events : hosts
+    profiles ||--o{ events : creates
+    events ||--o{ event_hosts : has
+    profiles ||--o{ event_hosts : joins
 
-    events ||--o{ registrations : "booked_in"
-    profiles ||--o{ registrations : "registers"
-    registrations ||--o{ registration_items : "breakdown"
+    events ||--o{ registrations : receives
+    profiles ||--o{ registrations : makes
+    registrations ||--o{ registration_items : contains
+    registrations ||--|| orders : creates
+    orders ||--o{ payments : has
+    registrations ||--o{ tickets : generates
+    events ||--o{ tickets : validates
+    profiles ||--o{ tickets : owns
 
-    registrations ||--|| orders : "creates"
-    profiles ||--o{ orders : "owns"
-    orders ||--o{ payments : "processed_via"
-    payments ||--o{ refunds : "refunded_via"
+    tickets ||--o| checkins : produces
+    events ||--o{ checkins : contains
+    profiles ||--o{ checkins : attendee
+    profiles ||--o{ checkins : staff
 
-    registrations ||--o{ tickets : "generates"
-    events ||--o{ tickets : "valid_for"
-    profiles ||--o{ tickets : "holds"
-
-    tickets ||--o| checkins : "verifies"
-    events ||--o{ checkins : "venue_location"
-    profiles ||--o{ checkins : "attendee"
-    profiles ||--o{ checkins : "scanner_staff"
-
-    tickets ||--o{ attendance_events : "tracks"
-    events ||--o{ attendance_events : "tracks"
-    profiles ||--o{ attendance_events : "attendee"
-
-    events ||--o{ waitlists : "queue"
-    profiles ||--o{ waitlists : "enrolled"
-
-    coupons ||--o{ coupon_redemptions : "redeemed"
-    profiles ||--o{ coupon_redemptions : "used_by"
-    registrations ||--o{ coupon_redemptions : "applied"
-
-    events ||--o{ reviews : "feedback"
-    profiles ||--o{ reviews : "authored"
-
-    profiles ||--o{ notifications : "sent_to"
-    profiles ||--o{ audit_logs : "triggered_by"
+    profiles ||--o{ audit_logs : performs
+    payment_webhook_events }o--|| payments : protects
 ```
 
----
+## Identity & Access
 
-## 🛡️ 1. User Identity & Multi-Role RBAC Domain
+### `profiles`
+
+Application-level user profile associated with the Firebase identity used by the public application and the dashboard identity model.
+
+Contains user-facing identity, contact and onboarding/access information.
+
+### `roles`, `permissions`
+
+Define the available authorization vocabulary.
+
+### `user_roles`
+
+Join table allowing a profile to hold multiple roles simultaneously.
+
+### `role_permissions`
+
+Maps roles to fine-grained permissions.
+
+## Host Operations
+
+### `host_applications`
+
+Stores public host applications and their review state. The application is submitted through the public website and reviewed through the dashboard.
+
+The database record is authoritative; Resend is the administrative notification mechanism.
+
+## Event Domain
+
+### `event_categories`
+
+Active/inactive category taxonomy for event discovery.
+
+### `events`
+
+Primary experience record. Includes title/slug, descriptions, publication state, schedule, capacity, registration state, pricing, cover media and references to category/venue/creator.
+
+### `venues`
+
+Venue identity/location data used by event pages and operations.
+
+### `event_hosts`
+
+Associates hosts/co-hosts with events.
+
+### Event tags/wishlist data
+
+The schema also contains event-tag and wishlist-related structures supporting discovery and user interest features.
+
+## Booking Domain
 
 ```mermaid
-erDiagram
-    profiles {
-        uuid id PK
-        uuid auth_user_id
-        text full_name
-        text phone
-        text email
-        text status
-        boolean phone_verified
-        boolean email_verified
-    }
-    roles {
-        uuid id PK
-        text name
-        text description
-        boolean is_system
-    }
-    permissions {
-        uuid id PK
-        text key
-        text description
-        text category
-    }
-    user_roles {
-        uuid id PK
-        uuid user_id FK
-        uuid role_id FK
-    }
-    role_permissions {
-        uuid id PK
-        uuid role_id FK
-        uuid permission_id FK
-    }
-    host_applications {
-        uuid id PK
-        uuid profile_id FK
-        uuid reviewed_by FK
-        text status
-    }
-
-    profiles ||--o{ user_roles : "has"
-    roles ||--o{ user_roles : "assigned_to"
-    roles ||--o{ role_permissions : "has"
-    permissions ||--o{ role_permissions : "granted_to"
-    profiles ||--o{ host_applications : "applies"
-    profiles ||--o{ host_applications : "reviews"
+flowchart LR
+    EVENT[Event] --> REG[Registration]
+    USER[Profile] --> REG
+    REG --> ITEM[Registration Items]
+    REG --> ORDER[Order]
+    ORDER --> PAYMENT[Payment]
+    REG --> TICKET[Ticket]
+    TICKET --> CHECKIN[Check-in]
 ```
 
----
+### `registrations`
 
-## 🎪 2. Event Operations & Venue Management Domain
+Represents the booking/registration relationship between a profile and an event.
 
-```mermaid
-erDiagram
-    event_categories {
-        uuid id PK
-        text name
-        text slug
-    }
-    venues {
-        uuid id PK
-        text name
-        text slug
-        integer capacity
-    }
-    events {
-        uuid id PK
-        text title
-        text slug
-        uuid category_id FK
-        uuid host_id FK
-        uuid venue_id FK
-        timestamp start_at
-        timestamp end_at
-        integer capacity
-        numeric price
-        text status
-    }
-    event_images {
-        uuid id PK
-        uuid event_id FK
-        text image_url
-    }
-    event_hosts {
-        uuid id PK
-        uuid event_id FK
-        uuid host_profile_id FK
-        text role
-    }
-    event_schedules {
-        uuid id PK
-        uuid event_id FK
-        text title
-        timestamp start_time
-        timestamp end_time
-    }
-    reviews {
-        uuid id PK
-        uuid event_id FK
-        uuid user_id FK
-        integer rating
-        text comment
-    }
+### `registration_items`
 
-    event_categories ||--o{ events : "categorizes"
-    venues ||--o{ events : "located_at"
-    events ||--o{ event_images : "gallery"
-    events ||--o{ event_hosts : "hosts"
-    events ||--o{ event_schedules : "itinerary"
-    events ||--o{ reviews : "feedback"
+Stores the item-level breakdown for a registration where applicable.
+
+### `orders`
+
+Application-side order record associated with a registration.
+
+### `payments`
+
+Payment state and provider-related financial record.
+
+### `payment_webhook_events`
+
+Idempotency/event-processing record for Razorpay webhook payloads. It prevents duplicate processing of the same provider event.
+
+### `tickets`
+
+Digital admission credential generated from successful booking/payment processing.
+
+## Attendance Domain
+
+### `checkins`
+
+Records ticket entry validation.
+
+### `attendance_events`
+
+Operational attendance/event history generated by check-in activity where applicable.
+
+The database check-in procedure is authoritative for whether a ticket is valid and whether it has already been checked in.
+
+## Audit Domain
+
+### `audit_logs`
+
+Records sensitive administrative/system actions for operational accountability.
+
+## Security
+
+Supabase RLS policies and RPC execution privileges are part of the security model. Application code must not assume that a client-side role check is sufficient.
+
+Sensitive service-role access remains server-side.
+
+## Migration Source
+
+The canonical migration history is under:
+
+```text
+backend/supabase/migrations/
 ```
 
----
+Migrations cover the current schema, RLS/security hardening, Firebase identity integration, payments, check-in, webhook idempotency, host applications, dashboard RBAC, performance indexes and search-related indexes.
 
-## 🎟️ 3. Registrations, Ticketing & Venue Check-In Domain
+Do not edit historical migrations to erase their history. Add new migrations for new schema changes.
 
-```mermaid
-erDiagram
-    registrations {
-        uuid id PK
-        text registration_number
-        uuid event_id FK
-        uuid user_id FK
-        text status
-        numeric total_amount
-    }
-    registration_items {
-        uuid id PK
-        uuid registration_id FK
-        text ticket_type
-        numeric unit_price
-        integer quantity
-    }
-    tickets {
-        uuid id PK
-        text ticket_code
-        uuid registration_id FK
-        uuid event_id FK
-        uuid user_id FK
-        text status
-    }
-    checkins {
-        uuid id PK
-        uuid ticket_id FK
-        uuid event_id FK
-        uuid user_id FK
-        uuid checked_in_by FK
-        timestamp checked_in_at
-    }
-    attendance_events {
-        uuid id PK
-        uuid ticket_id FK
-        uuid event_id FK
-        uuid user_id FK
-        uuid scanned_by FK
-        text type
-    }
-    waitlists {
-        uuid id PK
-        uuid event_id FK
-        uuid user_id FK
-        integer position
-    }
+## Visual Maintenance
 
-    registrations ||--o{ registration_items : "contains"
-    registrations ||--o{ tickets : "issues"
-    tickets ||--o| checkins : "scanned"
-    tickets ||--o{ attendance_events : "logs"
-```
-
----
-
-## 💳 4. Orders, Payments & Financial Operations Domain
-
-```mermaid
-erDiagram
-    orders {
-        uuid id PK
-        uuid registration_id FK
-        uuid user_id FK
-        numeric amount
-        text razorpay_order_id
-        text status
-    }
-    payments {
-        uuid id PK
-        uuid order_id FK
-        text provider
-        text provider_payment_id
-        numeric amount
-        text status
-    }
-    refunds {
-        uuid id PK
-        uuid payment_id FK
-        numeric amount
-        text status
-    }
-    coupons {
-        uuid id PK
-        text code
-        text discount_type
-        numeric discount_value
-    }
-    coupon_redemptions {
-        uuid id PK
-        uuid coupon_id FK
-        uuid user_id FK
-        uuid registration_id FK
-    }
-    payment_webhook_events {
-        uuid id PK
-        text razorpay_event_id
-        text event_type
-        text status
-    }
-
-    orders ||--o{ payments : "payment_records"
-    payments ||--o{ refunds : "refund_records"
-    coupons ||--o{ coupon_redemptions : "redemptions"
-```
+This Mermaid diagram is the canonical high-level visual. If a static diagram is generated later, store it under `docs/images/database/` and keep the Mermaid representation as the editable source.
