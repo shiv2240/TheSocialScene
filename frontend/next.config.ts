@@ -32,6 +32,10 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/",
+        headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
+      },
+      {
         source: "/events",
         headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
       },
