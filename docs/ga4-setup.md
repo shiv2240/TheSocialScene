@@ -1,43 +1,73 @@
-# GA4 Setup
+# Google Analytics 4 — Current Integration
 
-GA4 Property ID: `551255324`
+This document describes the current GA4/web-analytics integration used by The Social Scene.
 
-Web Measurement ID: `G-V3MYL05JWV`
+## Purpose
 
-## What these IDs mean
+GA4 measures website behavior and marketing/conversion telemetry. It is not the authoritative source for orders, payments, tickets or attendance.
 
-- **Property ID** `551255324` identifies the GA4 property for the server-side Analytics Data API.
-- **Measurement ID** `G-V3MYL05JWV` identifies the web data stream and is safe to expose through a `NEXT_PUBLIC_` environment variable.
+## Data Flow
 
-## Production environment variables
+```mermaid
+flowchart LR
+    PAGE[Next.js page] --> TRACKER[Google Analytics component]
+    TRACKER --> GA4[GA4 property]
+    DB[(Supabase PostgreSQL)] --> OPS[Operational analytics]
+```
 
-Public frontend:
+## Client Configuration
 
-`NEXT_PUBLIC_GA_MEASUREMENT_ID=G-V3MYL05JWV`
+Only browser-safe GA configuration may be exposed through `NEXT_PUBLIC_*` variables. Service-account credentials used by dashboard/server integrations must remain server-side.
 
-Server/dashboard:
+Do not commit credentials, service-account JSON, access tokens or private keys.
 
-`GA4_PROPERTY_ID=551255324`
-`GA4_CLIENT_EMAIL=...`
-`GA4_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"`
+## Recommended Event Taxonomy
 
-The private key must remain server-side and must never use a `NEXT_PUBLIC_` prefix. Never commit the service-account JSON file or private key to GitHub.
+The implementation should keep event names stable. Useful product events include:
 
-## Google Analytics Data API access
+- Event list viewed.
+- Event detail viewed.
+- Search performed.
+- Category selected.
+- Checkout started.
+- Payment initiated.
+- Booking completed.
+- Host application submitted.
 
-For the dashboard to read GA4 reports, create/use a Google Cloud service account and enable the **Google Analytics Data API** in the corresponding Google Cloud project. Grant the service-account email access to GA4 property `551255324` with the minimum role needed to read reports (Viewer is normally sufficient).
+Where an event represents a successful business operation, the application database remains the authoritative source.
 
-## Verification checklist
+## SPA Navigation
 
-1. Add `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-V3MYL05JWV` to the public frontend production environment.
-2. Deploy the public frontend.
-3. Open the public website and trigger a page view.
-4. Verify the event in GA4 Realtime/DebugView.
-5. Add the service account to GA4 property `551255324`.
-6. Add `GA4_PROPERTY_ID`, `GA4_CLIENT_EMAIL`, and `GA4_PRIVATE_KEY` to the dashboard/server production environment.
-7. Test the dashboard analytics endpoint.
-8. Confirm a Google API outage returns a controlled error and does not break the dashboard.
+Because the public site uses Next.js client navigation, page-view behavior must be verified across route transitions rather than only full browser reloads.
+
+Test:
+
+1. Load `/`.
+2. Navigate to `/events` using a client link.
+3. Open an event.
+4. Return using client navigation.
+5. Verify expected page-view/event behavior without duplicates.
 
 ## Privacy
 
-Never send email, phone number, Firebase UID, ticket code, or payment identifiers to GA4. Use anonymous event metadata such as event slug, category, currency, value, and quantity where appropriate.
+Analytics implementation must follow the platform's applicable privacy requirements and should not send unnecessary personally identifiable information to GA4.
+
+## Current Operational Note
+
+The dashboard also has a Google Analytics provider integration for realtime analytics. A previously observed production failure returned:
+
+```text
+500 Unable to authenticate with Google Analytics.
+```
+
+This is a server/provider-authentication issue in the dashboard analytics path and is separate from the frontend GA4 browser telemetry path.
+
+## QA Checklist
+
+- Measurement ID is correct for production.
+- No secret credentials are exposed client-side.
+- Page views work with App Router navigation.
+- Important product events are stable.
+- No duplicate tracking after hydration/navigation.
+- Analytics failures do not block booking or discovery.
+- Dashboard Google provider authentication is independently verified.
