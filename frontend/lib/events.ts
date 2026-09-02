@@ -9,6 +9,13 @@ export const EVENT_CARD_SELECT = `
   venue:venues(id,name,slug,address,city,capacity)
 `;
 
+export const EVENT_DETAIL_SELECT = `
+  id,title,slug,short_description,description,capacity,registered_count,registration_open,
+  price,currency,cover_image,start_at,end_at,status,
+  category:event_categories(id,name,slug),
+  venue:venues(id,name,address,city,google_maps_url)
+`;
+
 export interface PublicEventsPage {
   events: EventItem[];
   total: number;
@@ -49,6 +56,38 @@ export async function getPublicEvents(page = 1, pageSize = 9, category = 'all') 
   )();
 }
 
+export async function getPublicFeaturedEvents(limit = 6) {
+  const safeLimit = Math.min(12, Math.max(1, Math.floor(limit)));
+
+  return unstable_cache(
+    async () => {
+      const supabase = getSupabaseAdmin();
+      const { data: featured, error: featuredError } = await supabase
+        .from('events')
+        .select(EVENT_CARD_SELECT)
+        .eq('status', 'PUBLISHED')
+        .eq('featured', true)
+        .order('start_at', { ascending: true })
+        .limit(safeLimit);
+
+      if (featuredError) throw featuredError;
+      if (featured?.length) return featured as EventItem[];
+
+      const { data: fallback, error: fallbackError } = await supabase
+        .from('events')
+        .select(EVENT_CARD_SELECT)
+        .eq('status', 'PUBLISHED')
+        .order('start_at', { ascending: true })
+        .limit(safeLimit);
+
+      if (fallbackError) throw fallbackError;
+      return (fallback ?? []) as EventItem[];
+    },
+    ['public-featured-events', String(safeLimit)],
+    { revalidate: 30, tags: ['public-events', 'public-featured-events'] }
+  )();
+}
+
 export async function getPublicEventBySlug(slug: string) {
   const safeSlug = slug.trim();
   return unstable_cache(
@@ -56,7 +95,7 @@ export async function getPublicEventBySlug(slug: string) {
       const supabase = getSupabaseAdmin();
       const { data, error } = await supabase
         .from('events')
-        .select('id,title,slug,short_description,description,category:event_categories(id,name,slug),venue:venues(id,name,address,city,google_maps_url),start_at,end_at,capacity,registered_count,registration_open,price,currency,cover_image,status')
+        .select(EVENT_DETAIL_SELECT)
         .eq('slug', safeSlug)
         .eq('status', 'PUBLISHED')
         .maybeSingle();
