@@ -9,6 +9,7 @@ import { RequestCacheBootstrap } from '@/components/performance/RequestCacheBoot
 
 const displayFont = Bebas_Neue({
   subsets: ['latin'],
+  weight: '400',
   display: 'swap',
   variable: '--font-display',
 });
