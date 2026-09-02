@@ -10,7 +10,10 @@ export async function getCurrentFirebaseUser() {
   if (!sessionCookie) return null;
 
   try {
-    return await getFirebaseAdminAuth().verifySessionCookie(sessionCookie, true);
+    // Session cookies are cryptographically verified locally. Revocation checks
+    // require a network round-trip to Firebase and were adding hundreds of ms to
+    // every authenticated API request. Logout clears the session cookie locally.
+    return await getFirebaseAdminAuth().verifySessionCookie(sessionCookie, false);
   } catch {
     return null;
   }
