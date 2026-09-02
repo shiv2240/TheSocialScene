@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
-export const runtime = 'edge';
 
 const escapeSearchTerm = (value: string) =>
   value.replace(/[,%()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
