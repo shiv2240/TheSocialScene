@@ -24,9 +24,22 @@ function makeUsername(fullName: string) {
   return `${base}_${suffix}`.slice(0, 32);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await getCurrentFirebaseUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  if (!user) {
+    // Navbar is mounted on /login and performs its normal session probe before
+    // Firebase authentication has completed. Return an empty response there
+    // instead of producing a noisy expected 401 in the browser console.
+    const referer = request.headers.get('referer');
+    try {
+      if (referer && new URL(referer).pathname === '/login') {
+        return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
+      }
+    } catch {
+      // Ignore malformed referer headers and preserve the normal 401 response.
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  }
 
   const cached = profileCache.get(user.uid);
   if (cached && cached.expiresAt > Date.now()) {
