@@ -1,137 +1,176 @@
-# 🌐 The Social Scene — Frontend Application
+# The Social Scene — Frontend
 
-The public-facing audience web platform for **The Social Scene**, accessible in production at `https://thesocialscene.club` (or `http://localhost:3000` during local development).
+The `frontend/` application is the public attendee-facing Next.js application for The Social Scene.
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2-61dafb?logo=react)](https://react.dev/)
-[![Firebase](https://img.shields.io/badge/Firebase-Phone_Auth-orange?logo=firebase)](https://firebase.google.com/)
-[![Razorpay](https://img.shields.io/badge/Razorpay-Checkout-blue?logo=razorpay)](https://razorpay.com/)
-[![Framer Motion](https://img.shields.io/badge/Framer_Motion-13.1-black)](https://framer.com/motion)
+**Production:** `https://www.thesocialscene.club`  
+**Local:** `http://localhost:3000`
 
----
+## Current Stack
 
-## 📖 Table of Contents
-1. [Application Purpose](#-application-purpose)
-2. [Key Audience Features](#-key-audience-features)
-3. [User Authentication & Phone OTP](#-user-authentication--phone-otp)
-4. [Checkout & Razorpay Payment Integration](#-checkout--razorpay-payment-integration)
-5. [Frontend Directory & Route Map](#-frontend-directory--route-map)
-6. [Database ER Diagram Overview](#-database-er-diagram-overview)
-7. [Setup & Execution Guide](#-setup--execution-guide)
+- Next.js `16.3.2` App Router.
+- React `19.2.8`.
+- TypeScript.
+- Tailwind CSS v4.
+- Firebase Client/Admin SDKs for public authentication/session integration.
+- Supabase SSR/admin data access for the relational application layer.
+- Razorpay for checkout/payment.
+- Resend for transactional/admin email flows.
+- 2Factor for phone OTP verification.
+- Framer Motion for selected UI motion.
+- Lucide React for icons.
 
----
-
-## 🎯 Application Purpose
-
-The Frontend web application provides an engaging experience for social event discovery and ticket purchasing. It allows attendees to:
-- Discover upcoming social gatherings filtered by vibe, city, date, and category.
-- Authenticate quickly using their mobile phone number via SMS OTP.
-- Securely purchase event passes through Razorpay.
-- Access digital ticket stubs featuring tear-notch aesthetics, barcodes, and scannable QR payloads.
-- Submit proposals to become a event host (`/become-a-host`).
-
----
-
-## 🚀 Key Audience Features
-
-### 1. 🎨 GoFlow Discovery Interface (`/`)
-- Dynamic ticker marquee displaying live upcoming events.
-- Interactive vibe pill filters (e.g. *Mixer, Party, Workshop, Networking*).
-- Hero search experience with date and venue location filters.
-- Attendee avatar stacks displaying social proof and participant interest.
-
-### 2. 📱 Firebase Phone SMS OTP Authentication (`/login`)
-- 6-digit SMS OTP verification powered by **2Factor API**.
-- Automatic identity creation and profile synchronization with Supabase PostgreSQL.
-- Session cookie handling via Firebase Client & Admin SDKs.
-
-### 3. 💳 Embedded Razorpay Payment Checkout (`/checkout`)
-- Real-time event capacity validation before payment modal launch.
-- Supports UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, and NetBanking.
-- Server-side signature verification ensuring transaction integrity.
-
-### 4. 🎟️ Digital Ticket Wallet & Stub View (`/tickets/[ticketCode]`)
-- Physical ticket stub design with tear notches and barcode visualization.
-- High-resolution scannable QR payload renderer used at venue check-in.
-
----
-
-## 📂 Frontend Directory & Route Map
-
-```text
-frontend/
-├── app/
-│   ├── (public)/
-│   │   ├── page.tsx               # Homepage with marquee & vibe filters
-│   │   ├── events/                # Browse events directory & detail views
-│   │   ├── categories/            # Category-based event listings
-│   │   ├── venues/                # Venue locations & capacity overview
-│   │   ├── hosts/                 # Creator profiles & hosted events
-│   │   ├── checkout/              # Booking summary & Razorpay payment handler
-│   │   └── become-a-host/         # Community host proposal submission form
-│   │
-│   ├── (auth)/
-│   │   ├── login/                 # Mobile phone sign-in page
-│   │   ├── verify-otp/            # 6-digit SMS OTP input form
-│   │   └── onboarding/            # Profile completion for new members
-│   │
-│   └── (account)/
-│       ├── profile/               # Member profile editor
-│       └── tickets/               # Attendee pass wallet & stub viewer
-│
-├── components/
-│   ├── account/ProfileEditor.tsx  # User profile editor form
-│   ├── analytics/GoogleAnalytics.tsx # GA4 telemetry tracking component
-│   └── event/EventCard.tsx        # Event display card component
-│
-└── lib/
-    ├── firebase/                  # Firebase Client & Admin SDK initializers
-    └── supabase/                  # Supabase browser & server clients
-```
-
----
-
-## 📊 Database ER Diagram Overview
-
-Below is the database relationship diagram for tables accessed by the Frontend application:
+## Application Model
 
 ```mermaid
-erDiagram
-    profiles ||--o{ registrations : "creates_booking"
-    event_categories ||--o{ events : "categorizes"
-    venues ||--o{ events : "hosts_event"
-    events ||--o{ registrations : "has_registrations"
-
-    registrations ||--|| orders : "initiates_payment"
-    orders ||--o{ payments : "processed_by_razorpay"
-
-    registrations ||--o{ tickets : "generates_pass"
-    events ||--o{ tickets : "valid_for"
-    profiles ||--o{ tickets : "owned_by_user"
-    events ||--o{ reviews : "feedback_by_attendees"
+flowchart LR
+    USER[Attendee] --> UI[Next.js UI]
+    UI --> AUTH[Firebase]
+    UI --> API[Next.js API Routes]
+    API --> DB[(Supabase PostgreSQL)]
+    API --> RZ[Razorpay]
+    API --> OTP[2Factor]
+    API --> EMAIL[Resend]
 ```
 
-> 📖 **Field-Level Specifications:** See [`docs/database-er-diagram.md`](file:///d:/Freelance/Project-12%20%28TheSocialScene/docs/database-er-diagram.md) for full schema details.
+## Public Experience
 
----
+Current primary routes include:
 
-## ⚡ Setup & Execution Guide
+| Route | Responsibility |
+|---|---|
+| `/` | Homepage/discovery |
+| `/events` | Published event directory |
+| `/events/[slug]` | Event details and booking entry |
+| `/categories` | Category discovery |
+| `/categories/[slug]` | Category-specific events |
+| `/venues` | Venue discovery |
+| `/hosts` | Host/community discovery where available |
+| `/checkout` | Booking/payment flow |
+| `/become-a-host` | Host application |
+| `/login` | Authentication |
+| `/onboarding` | Profile completion |
+| `/account/profile` | Profile management |
+| `/account/tickets` | Ticket wallet |
 
-### 1. Install Dependencies
+## Authentication
+
+Public authentication is Firebase-based. Phone authentication uses 2Factor for OTP verification. Firebase identity is connected to the application's PostgreSQL `profiles` record.
+
+The server session flow is deliberately atomic from the frontend perspective:
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Firebase
+    participant Session as /api/auth/session
+    participant DB as Supabase
+
+    Browser->>Firebase: Sign in
+    Firebase-->>Browser: ID token
+    Browser->>Session: POST ID token
+    Session->>Firebase: Verify token
+    Session->>DB: Read/sync profile
+    DB-->>Session: Profile
+    Session-->>Browser: Session + profile
+```
+
+The Navbar listens to Firebase `onAuthStateChanged` and loads server profile state after authentication initialization. A `tss:auth-session-established` event is used to refresh the profile after successful server-session creation.
+
+## Event Data & Performance
+
+Public event/category data is cached using Next.js server caching. Public pages use revalidation and appropriate HTTP cache headers where configured.
+
+The event library contains cached public queries such as:
+
+- Published event lists.
+- Event detail by slug.
+- Public categories.
+- Category event collections.
+
+The event detail page should use the cached public event helper rather than introducing a fresh cookie-dependent query for public event data.
+
+## Navigation Performance
+
+Current optimizations include:
+
+- App Router client navigation.
+- Idle prefetching of primary routes.
+- Client router stale times.
+- Immediate route loading UI.
+- Public page/data caching.
+- Optimized event images through Next.js `<Image>`.
+- Package import optimization for icon dependencies.
+
+The target is fast perceived navigation, especially for prefetched routes. A universal <200 ms server response is not guaranteed because uncached requests and external services have variable latency.
+
+## Booking & Payments
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API
+    participant DB
+    participant Razorpay
+
+    User->>Frontend: Select event/quantity
+    Frontend->>API: Create order request
+    API->>DB: Validate/lock capacity
+    API->>Razorpay: Create order
+    Razorpay-->>Frontend: Checkout
+    User->>Razorpay: Pay
+    Razorpay-->>API: Webhook
+    API->>DB: Idempotency + payment state
+    DB-->>API: Persist booking/ticket
+    API-->>Frontend: Ticket available
+```
+
+Payment confirmation must come from server-side verification/webhook processing, not merely from the browser payment callback.
+
+## Host Applications
+
+The `/become-a-host` form posts to `/api/host-applications`.
+
+The API persists the application first, then awaits Resend notification delivery/acceptance. Current administrative notification destination is `support@thesocialscene.club` and the sender is `The Social Scene <noreply@thesocialscene.club>`.
+
+If the database insert succeeds but Resend fails, the API returns a warning rather than falsely reporting complete notification success.
+
+## Ticket Wallet
+
+Tickets are generated after successful payment processing and are accessible from the attendee account/ticket routes. QR/barcode data is intended for dashboard scanner validation.
+
+## Important Client-Side Rules
+
+- Do not put service-role secrets in client code.
+- Do not trust client payment success as final booking confirmation.
+- Do not make authentication-dependent API calls before the server session exists.
+- Use accessible labels/alt text for controls and imagery.
+- Keep global Navbar behavior unchanged when modifying individual routes.
+- Avoid unnecessary client components on public pages.
+
+## Development
+
 ```bash
 cd frontend
 npm install
-```
-
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env.local`:
-```bash
-copy .env.example .env.local
-```
-
-### 3. Run Development Server
-```bash
-# Runs frontend on port 3000
 npm run dev
 ```
-Open `http://localhost:3000` in your browser.
+
+Production build:
+
+```bash
+npm run build
+npm run start
+```
+
+Copy `.env.example` to `.env.local` and populate the required environment variables. Never commit real secrets.
+
+## Visual Documentation
+
+Use Mermaid for flows and architecture. For current UI screenshots, add images under `../docs/images/` and reference them with relative paths, for example:
+
+```md
+![Current event discovery UI](../docs/images/events-page.png)
+```
+
+Screenshots must be refreshed whenever they no longer represent the implemented UI.
