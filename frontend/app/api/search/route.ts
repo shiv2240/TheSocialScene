@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
-
 
 const escapeSearchTerm = (value: string) =>
   value.replace(/[,%()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
@@ -9,6 +9,22 @@ const jsonHeaders = {
   'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
   'CDN-Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
 };
+
+const getCachedSearch = unstable_cache(
+  async (q: string, category: string, limit: number, offset: number) => {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.rpc('search_published_events', {
+      p_query: q,
+      p_category_slug: category,
+      p_limit: limit,
+      p_offset: offset,
+    });
+    if (error) throw error;
+    return data ?? [];
+  },
+  ['public-event-search'],
+  { revalidate: 30, tags: ['public-events', 'public-event-search'] },
+);
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,17 +35,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? '9') || 9, 1), 50);
     const offset = (page - 1) * limit;
 
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase.rpc('search_published_events', {
-      p_query: q,
-      p_category_slug: category,
-      p_limit: limit,
-      p_offset: offset,
-    });
-
-    if (error) throw error;
-
-    const results = data ?? [];
+    const results = await getCachedSearch(q, category, limit, offset);
     const total = Number(results[0]?.total_count ?? 0);
 
     return NextResponse.json(
