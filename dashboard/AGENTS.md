@@ -1,9 +1,30 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# Dashboard Agent Notes
 
-# This is NOT the Next.js you know
+The dashboard is a Next.js `16.3.2` application using React `19.2.8` and Supabase SSR authentication.
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+## Current system boundaries
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+- PostgreSQL is managed by Supabase.
+- Dashboard authentication uses Supabase SSR.
+- Authorization is multi-role RBAC with server-side permission checks.
+- Payments originate from Razorpay records/webhooks.
+- Ticket validation/check-in is database-backed.
+- Analytics are operational metrics; GA4 is a separate telemetry source.
 
-<!-- END:nextjs-agent-rules -->
+## Working rules
+
+- Read the installed Next.js documentation before making framework-level changes.
+- Enforce authorization on the server/API, not only in UI components.
+- Treat role assignments as a collection because users can hold multiple roles.
+- Keep access status separate from roles.
+- Preserve audit logging for sensitive administrative mutations.
+- Do not expose service-role credentials client-side.
+- Test scanner behavior on mobile browsers when changing scanner code.
+
+## Performance
+
+Avoid blocking dashboard navigation with unnecessary sequential requests. Preserve route loading states and reuse cached data where it is safe to do so.
+
+## Documentation
+
+Update the relevant Markdown files when the implemented dashboard architecture, routes, permissions or operational flows change. Use Mermaid for architecture/sequence visuals and only reference screenshots that represent the current UI.
