@@ -5,6 +5,7 @@ import './navigation-performance.css';
 import { Navbar } from '@/components/layout/Navbar';
 import { MobileNavigation } from '@/components/layout/MobileNavigation';
 import { RequestCacheBootstrap } from '@/components/performance/RequestCacheBootstrap';
+import { NavigationPrefetch } from '@/components/performance/NavigationPrefetch';
 
 export const metadata: Metadata = {
   title: 'THE SOCIAL SCENE | Sunset Runs · Rooftop Gigs · Outdoor Treks',
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full antialiased" style={{ backgroundColor: '#ede4d0', color: '#1e1a14' }} suppressHydrationWarning>
         <RequestCacheBootstrap />
+        <NavigationPrefetch />
         <Navbar />
         {children}
         <MobileNavigation />
