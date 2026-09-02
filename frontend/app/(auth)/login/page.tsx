@@ -4,7 +4,7 @@ import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { GoogleAuthProvider, isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink, signInWithPopup } from 'firebase/auth';
-import { Mail, ShieldCheck, Sparkles } from 'lucide-react';
+import { Mail, ShieldCheck } from 'lucide-react';
 import { getFirebaseAuth } from '@/lib/firebase/client';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -26,8 +26,6 @@ function LoginContent() {
 
   const establishSession = async () => {
     const auth = getFirebaseAuth();
-    // Use the already-cached Firebase ID token when possible. Forcing a refresh
-    // adds an avoidable network round-trip before our session endpoint runs.
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error('Unable to establish authentication.');
     const response = await fetch('/api/auth/session', {
@@ -100,6 +98,10 @@ function LoginContent() {
     setGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
+      // Always show Google's account chooser so users can explicitly select
+      // which Google account should be used instead of silently reusing the
+      // browser's currently active account.
+      provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(getFirebaseAuth(), provider);
       await establishSession();
       await continueAfterAuth();
@@ -146,7 +148,6 @@ function LoginContent() {
               </>
             ) : (
               <>
-                {/* Official Google G icon */}
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
                   <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
                   <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -159,20 +160,13 @@ function LoginContent() {
             )}
           </button>
 
-
           {error && <p className="text-xs text-red-400 text-center font-sans-clean font-bold">{error}</p>}
           <div className="flex items-center justify-center gap-2 text-[11px] text-[#f4ebd9]/60 pt-3 border-t border-white/10 font-sans-clean font-semibold"><ShieldCheck className="w-4 h-4 text-emerald-400" /><span>Secure Email & Google Authentication</span></div>
 
-          {/* Support link */}
           <div className="text-center pt-2 pb-1">
             <p className="text-[10px] text-[#f4ebd9]/40 font-sans-clean mb-1">Having trouble logging in?</p>
-            <a
-              href="mailto:support@thesocialscene.club?subject=Login%20Issue%20-%20The%20Social%20Scene"
-              className="inline-flex items-center gap-1.5 text-[11px] font-sans-clean font-bold text-[#f4ebd9]/60 hover:text-[#cb4b31] transition-colors underline underline-offset-2"
-            >
-              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-              </svg>
+            <a href="mailto:support@thesocialscene.club?subject=Login%20Issue%20-%20The%20Social%20Scene" className="inline-flex items-center gap-1.5 text-[11px] font-sans-clean font-bold text-[#f4ebd9]/60 hover:text-[#cb4b31] transition-colors underline underline-offset-2">
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
               support@thesocialscene.club
             </a>
           </div>
