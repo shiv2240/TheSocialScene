@@ -6,16 +6,15 @@ const nextConfig: NextConfig = {
 
   images: {
     formats: ["image/avif", "image/webp"],
-    minimumCacheTTL: 3600,       // cache optimised images for 1h minimum
+    minimumCacheTTL: 3600,
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
-      { protocol: "https", hostname: "**.supabase.co" },  // allow Supabase Storage images
+      { protocol: "https", hostname: "**.supabase.co" },
     ],
   },
 
-  // Aggressive caching for static assets — reduces repeat-visit latency to ~0ms
   async headers() {
     return [
       {
@@ -31,8 +30,6 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Firebase Google popup auth expects the opener to be allowed to
-        // communicate with the popup after it crosses the Google origin.
         source: "/login",
         headers: [
           { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
@@ -43,6 +40,10 @@ const nextConfig: NextConfig = {
 
   experimental: {
     optimizePackageImports: ["lucide-react"],
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
   },
 };
 
