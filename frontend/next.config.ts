@@ -30,6 +30,14 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "public, s-maxage=30, stale-while-revalidate=60" },
         ],
       },
+      {
+        // Firebase Google popup auth expects the opener to be allowed to
+        // communicate with the popup after it crosses the Google origin.
+        source: "/login",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+        ],
+      },
     ];
   },
 
