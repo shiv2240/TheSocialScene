@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const PUBLIC_PAGE_CACHE = "public, s-maxage=30, stale-while-revalidate=120";
+
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
@@ -28,6 +30,34 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "Cache-Control", value: "public, s-maxage=30, stale-while-revalidate=60" },
         ],
+      },
+      {
+        source: "/events",
+        headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
+      },
+      {
+        source: "/events/:slug",
+        headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
+      },
+      {
+        source: "/categories",
+        headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
+      },
+      {
+        source: "/categories/:slug",
+        headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
+      },
+      {
+        source: "/venues",
+        headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
+      },
+      {
+        source: "/how-it-works",
+        headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
+      },
+      {
+        source: "/become-a-host",
+        headers: [{ key: "Cache-Control", value: PUBLIC_PAGE_CACHE }],
       },
       {
         source: "/login",
