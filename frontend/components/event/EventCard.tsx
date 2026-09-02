@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Calendar, MapPin, Users, Sparkles } from 'lucide-react';
 import { EventItem } from '@backend/types/database.types';
@@ -21,13 +22,12 @@ export function EventCard({ event }: EventCardProps) {
     <article className="group bg-[#f7f0e3] rounded-2xl overflow-hidden border-2 border-[#1e1a14] hover:shadow-[5px_6px_0px_#1e1a14] transition-all duration-300 flex flex-col h-full">
       <div className="relative h-52 sm:h-60 overflow-hidden bg-[#e0d5bc] border-b-2 border-[#1e1a14]">
         {event.cover_image ? (
-          <img
+          <Image
             src={event.cover_image}
             alt={event.title}
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center font-mono text-[10px] uppercase tracking-widest text-[#1e1a14]/40">[ no image ]</div>
