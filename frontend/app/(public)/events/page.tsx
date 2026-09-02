@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { Compass } from 'lucide-react';
 import { EventsSearch } from '@/components/event/EventsSearch';
+import { Footer } from '@/components/layout/Footer';
 import { getPublicEvents } from '@/lib/events';
 
 // Event data is already cached for 30s in lib/events. Do not force the route
@@ -45,6 +46,7 @@ export default async function EventDiscoveryPage() {
           <EventsSearch initialEvents={events} initialTotal={total} />
         </Suspense>
       </main>
+      <Footer />
     </div>
   );
 }
