@@ -5,22 +5,37 @@ import { useRouter } from 'next/navigation';
 
 const PRIMARY_ROUTES = ['/', '/events', '/categories', '/become-a-host', '/account'];
 
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
 export function NavigationPrefetch() {
   const router = useRouter();
 
   useEffect(() => {
-    // Let the current page finish its first paint before warming the most-used
-    // routes. With staleTimes enabled, these full prefetches stay in the client
-    // router cache and make subsequent clicks effectively instant.
+    let cancelled = false;
+    const idleWindow = window as IdleWindow;
+
     const prefetch = () => {
-      PRIMARY_ROUTES.forEach(route => router.prefetch(route));
+      if (cancelled) return;
+      PRIMARY_ROUTES.forEach((route) => router.prefetch(route));
     };
 
-    const idle = 'requestIdleCallback' in window
-      ? window.setTimeout(() => (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback?.(prefetch), 150)
-      : window.setTimeout(prefetch, 500);
+    let idleHandle: number | undefined;
+    let timeoutHandle: number | undefined;
 
-    return () => window.clearTimeout(idle);
+    if (idleWindow.requestIdleCallback) {
+      idleHandle = idleWindow.requestIdleCallback(prefetch, { timeout: 1500 });
+    } else {
+      timeoutHandle = window.setTimeout(prefetch, 500);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleHandle !== undefined) idleWindow.cancelIdleCallback?.(idleHandle);
+      if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle);
+    };
   }, [router]);
 
   return null;
