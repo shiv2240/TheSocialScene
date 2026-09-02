@@ -1,296 +1,282 @@
-# The Social Scene — Comprehensive UI/UX & Layout Architecture (`DESIGN.md`)
+# The Social Scene — Current UI/UX Architecture
 
-This document serves as the **authoritative UI layout reference** for **The Social Scene** monorepo. It details the precise component structure, section placements, wireframe blueprints, design tokens, and interactive elements across both applications:
+This is the current UI/UX reference for the production system. It documents the implemented design direction rather than proposed future screens.
 
-1. **Public Discovery Website (`frontend`)** — Target Domain: `https://thesocialscene.club`
-2. **Operations & Host Dashboard (`dashboard`)** — Target Domain: `https://admin.thesocialscene.club`
+## 1. Design Principles
 
-Use this reference when requesting UI modifications or feeding layout context to AI assistants.
+The Social Scene is intentionally editorial, social and experience-led rather than resembling a conventional ticket marketplace.
 
----
+Core principles:
 
-## 🎨 1. Design System & Theme Tokens
+- Strong visual hierarchy around event imagery and titles.
+- Warm, premium, community-oriented visual language.
+- Responsive layouts across desktop and mobile.
+- Clear booking CTAs without aggressive marketplace patterns.
+- Rounded/floating navigation treatment where implemented.
+- Motion is purposeful and should not delay interaction.
+- Accessibility and touch usability take priority over decorative effects.
 
-### Color Palette
+## 2. Visual System
 
-| Token Name | Hex Code | Purpose / Application |
-| :--- | :--- | :--- |
-| **Dark Canvas (Background)** | `#141217` | Primary page background for Frontend |
-| **Dashboard Canvas** | `#0b0f19` | Deep navy background for Operations Dashboard |
-| **Terracotta Primary Accent** | `#c85a3c` | Primary brand CTA buttons, borders, highlights |
-| **Terracotta Light Text** | `#f0a07f` | Highlighted text in badges, active pill text |
-| **Amber Secondary Accent** | `#e59838` | Badges, warnings, status indicators, secondary CTAs |
-| **Glass Card Background** | `rgba(255, 255, 255, 0.03)` | Semi-transparent card containers |
-| **Glass Card Border** | `rgba(255, 255, 255, 0.10)` | Subtle glowing border for dark-mode cards |
-| **Text Primary** | `#ffffff` / `#f3f4f6` | Headings, primary text |
-| **Text Muted** | `#9ca3af` / `#6b7280` | Subtitles, helper text, labels |
+The codebase uses Tailwind CSS v4 and a warm neutral/terracotta visual vocabulary. Individual pages may have contextual tokens, but new UI should reuse existing component conventions instead of introducing unrelated colors.
 
-### Glassmorphism & UI Card Specs
-```css
-/* Card Container Utility */
-.glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1.5rem; /* 24px */
-}
+### Common visual characteristics
 
-/* Gradient Primary Button */
-.gradient-terracotta {
-  background: linear-gradient(135deg, #c85a3c 0%, #a44327 100%);
-}
+- Rounded cards and controls.
+- High-contrast primary text.
+- Muted secondary text for metadata.
+- Large event cover imagery.
+- Category/vibe pills.
+- Soft borders and translucent/glass surfaces where appropriate.
+- Subtle motion through Framer Motion where it adds feedback or storytelling.
+
+## 3. Global Public Layout
+
+```mermaid
+flowchart TB
+    NAV[Navbar]
+    CONTENT[Route Content]
+    FOOTER[Footer]
+    NAV --> CONTENT --> FOOTER
 ```
 
----
+The root layout owns global navigation components. Individual pages should not add duplicate global navigation unless there is a deliberate route-specific requirement.
 
-## 📱 2. Frontend Application (`thesocialscene.club`)
+### Navigation behavior
 
-### Global Layout Wrapper ([`frontend/app/layout.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/frontend/app/layout.tsx))
-- **HTML Container:** `<html lang="en" className="h-full dark" suppressHydrationWarning>`
-- **Body Wrapper:** `<body className="min-h-full flex flex-col bg-[#141217] text-gray-100 antialiased" suppressHydrationWarning>`
-- **Top Header:** `<Navbar />` (Sticky navigation bar)
-- **Main Viewport:** `<main className="flex-1">`
-- **Bottom Footer:** `<Footer />` (4-column site footer + copyright)
+The public Navbar is a shared responsive component. Its floating/rounded behavior is considered a global interaction pattern. Route-specific changes must not regress it on other screens.
 
----
+When the Navbar changes dimensions during scroll, surrounding content should accommodate that geometry rather than visually jumping underneath it.
 
-### Page 1: Home / Landing Page (`/`)
+## 4. Public Routes
 
-#### ASCII Layout Wireframe
+### `/`
+
+Homepage responsibilities:
+
+- Brand introduction and positioning.
+- Search/discovery entry point.
+- Vibe/category discovery.
+- Featured/upcoming experiences.
+- Social proof/community storytelling.
+- Clear paths into event discovery.
+
+The homepage uses server-side public event data where applicable and should remain fast on repeat navigation through Next.js caching/prefetching.
+
+### `/events`
+
+The events directory is the primary discovery surface.
+
+Expected structure:
+
 ```text
-+-----------------------------------------------------------------------+
-| NAVBAR: [Logo] "The Social Scene"      [Events] [Hosts]  [My Passes]  |
-+-----------------------------------------------------------------------+
-| TICKER MARQUEE:  🔥 Sunset Run Club · Rooftop Acoustic Gigs · Treks   |
-+-----------------------------------------------------------------------+
-| HERO SECTION:                                                         |
-|   [Badge: Come Solo. Leave With Stories]                              |
-|   Heading: Curated Social Experiences for Modern Explorers            |
-|   Subtext: Escape digital fatigue. Authentic human connections.        |
-|   Search Bar: [ 🔍 Search events, cities or vibes... ]  [ Explore ]   |
-|   Vibe Pills:  (All) (Run Club) (Acoustic) (Treks) (Mixers) (Culinary)|
-+-----------------------------------------------------------------------+
-| FEATURED EXPERIENCE CARDS GRID (3 Columns):                           |
-|  +---------------------+ +---------------------+ +------------------+ |
-|  | [ Image Cover ]     | | [ Image Cover ]     | | [ Image Cover ]  | |
-|  | Tag: Sunset Run     | | Tag: Acoustic Gig   | | Tag: Mountain Trek| |
-|  | Title: Cubbon Run   | | Title: Rooftop Jam  | | Title: Western Ghat| |
-|  | 📅 Sat, 6:00 AM     | | 📅 Sun, 7:00 PM     | | 📅 Fri - Sun   | |
-|  | 📍 Indiranagar      | | 📍 Koramangala      | | 📍 Chikmagalur  | |
-|  | 🎟️ ₹499             | | 🎟️ ₹799             | | 🎟️ ₹3,499      | |
-|  | [ Book Ticket ]     | | [ Book Ticket ]     | | [ Book Ticket ]  | |
-|  +---------------------+ +---------------------+ +------------------+ |
-+-----------------------------------------------------------------------+
-| QUOTE WALL & COMMUNITY REVIEWS                                        |
-|   "Met my weekend running squad here." — Ananya R., Bengaluru         |
-+-----------------------------------------------------------------------+
-| FOOTER: [Logo] [Community Links] [Host Operations] [Platform Links]   |
-+-----------------------------------------------------------------------+
+Events
+├── Search / filters
+├── Category / vibe controls
+├── Event result grid
+└── Empty / loading states
 ```
 
----
+Event cards should prioritize image, title, date/time, location, price and availability without overloading the card.
 
-### Page 2: Events Discovery Page (`/events`)
+### `/events/[slug]`
 
-#### Section Breakdown & Elements
-1. **Header Filter Bar:**
-   - Text Search Input (filters title, description, city, venue).
-   - Category Pills (horizontal scrollable tags: `All`, `Treks`, `Fitness`, `Music`, `Networking`).
-   - City Dropdown (`Bengaluru`).
-2. **Events Grid Container:**
-   - 3-column responsive layout (`grid-cols-1 md:grid-cols-2 lg:grid-cols-3`).
-   - Empty state fallback illustration when no events match search filters.
-3. **Event Card Component (`EventCard.tsx`):**
-   - Cover Image with Category Overlay Tag.
-   - Spot Availability Pill: e.g., `⚡ 6 spots left`.
-   - Title, Date/Time Badge, Location/Venue Name.
-   - Price Display (`₹XXX` or `Free`).
-   - CTA Button: `Book Ticket` → routes to `/events/[id]`.
+The event detail page is the decision surface for booking.
 
----
+Desktop pattern:
 
-### Page 3: Event Details & Booking Page (`/events/[id]`)
-
-#### Layout Architecture
-- **Desktop Grid:** 2-column layout (`grid-cols-1 lg:grid-cols-[1.5fr_1fr]`).
-- **Left Column (Content Area):**
-  - Cover Image Banner with gradient overlay.
-  - Category Badge & Host Identity (`Hosted by: {Host Name}`).
-  - Event Title (`h1`) & Date/Time & Full Venue Address.
-  - Event Description & Highlight Bullet Points.
-  - Host Bio & Guidelines / Instructions for Attendees.
-- **Right Column (Sticky Booking Sidebar Container):**
-  - Ticket Pricing Card (Glassmorphism card, `sticky top-24`).
-  - Price per ticket & Capacity counter (`Spots remaining`).
-  - Quantity Selector (`- 1 +`).
-  - Total Amount Calculation (`Price × Quantity`).
-  - `Proceed to Checkout` button → routes to `/checkout?eventId=...&qty=...`.
-- **Mobile Viewport Sticky Footer:**
-  - Fixed bottom bar on mobile (`fixed bottom-0 left-0 right-0 z-40 bg-[#141217]/95 border-t border-white/10`).
-  - Displays total price + `Book Now` button for instant access on small screens.
-
----
-
-### Page 4: Become a Host Page (`/become-a-host`)
-
-#### Layout Breakdown
-- **Hero Intro:** `ShieldCheck` badge + Title: *"Turn your community into an experience."*
-- **Left Sticky Sidebar (Host Benefits):**
-  - Card 1: *Own your community* (Icon + Text).
-  - Card 2: *Run events from one dashboard* (Icon + Text).
-  - Card 3: *Controlled access & host isolation* (Icon + Text).
-- **Right Form Container (Application Form):**
-  - Full Name, Email Address, Phone Number, City, Organization / Community Name.
-  - Expected Frequency Input (e.g. 2 events / month).
-  - Event Types Multi-Select Pill Toggle (`Social`, `Music`, `Fitness`, `Treks`, etc.).
-  - Experience & Proposed Event Textareas.
-  - Why Host Textarea (Min 20 characters required).
-  - Instagram Handle & Website Link Inputs.
-  - Honeypot Spam Protection Field (hidden).
-  - `Submit Host Application` Button.
-
----
-
-### Page 5: Checkout & Payment Page (`/checkout`)
-
-#### Step-by-Step Flow Structure
-1. **Order Summary Header:** Event title, date, venue, selected quantity, price breakdown.
-2. **Attendee Information Form:**
-   - Full Name, Email, Phone Number.
-   - Mobile OTP Verification Drawer (if user is not logged in via phone).
-3. **Payment Trigger:**
-   - Integrates Razorpay Modal (`Razorpay.open()`).
-   - Success state triggers automated pass issuance and routes to `/tickets`.
-
----
-
-### Page 6: Digital Pass & Ticket Stub (`/ticket/[ticketCode]`)
-
-#### Physical Ticket Visual Aesthetics
 ```text
-+-----------------------------------------------------------------------+
-|  THE SOCIAL SCENE · OFFICIAL DIGITAL PASS                             |
-|  =============================================================        |
-|  EVENT:  Sunset Run Club & Filter Coffee Social                       |
-|  DATE:   Saturday, 28 Aug 2026 · 06:00 AM                           |
-|  VENUE:  Cubbon Park Main Gate, Bengaluru                             |
-|  NAME:   Aarav Sharma                                                 |
-|  PASS:   #TSS-2026-8942                                               |
-|  -------------------------------------------------------------        |
-|  ( ) [TEAR NOTCH]                                     [TEAR NOTCH] ( )|
-|  -------------------------------------------------------------        |
-|  ATTENDEE QR CODE:                                                    |
-|        +-------------------+                                          |
-|        |  [ QR CODE IMG ]  |                                          |
-|        |   SCAN AT ENTRY   |                                          |
-|        +-------------------+                                          |
-|  BARCODE: |||| ||| ||||| || |||||| ||| |||||||                       |
-+-----------------------------------------------------------------------+
+┌───────────────────────────────┬─────────────────────┐
+│ Cover / title / description    │ Booking information │
+│ Host / venue / schedule       │ Price               │
+│ Rules / event information     │ Quantity            │
+│                               │ CTA                 │
+└───────────────────────────────┴─────────────────────┘
 ```
 
----
+Mobile layouts must retain a prominent booking action without creating an obstructive fixed element that blocks content or navigation.
 
-## 🛠️ 3. Operations & Host Dashboard (`admin.thesocialscene.club`)
+### `/categories` and `/categories/[slug]`
 
-### Global Dashboard Shell ([`dashboard/app/(dashboard)/layout.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/dashboard/app/%28dashboard%29/layout.tsx))
+Category pages organize published events around the platform's social/vibe taxonomy. Category pages are public and use cached data.
 
-#### Layout Structure & Navigation Tree
-- **Left Collapsible Sidebar Container (`DashboardSidebar.tsx`):**
-  - Brand Logo + Header (`The Social Scene Admin`).
-  - Navigation Sections:
-    - 📊 `Overview / Analytics` (`/`)
-    - 📅 `Event Management` (`/events`)
-    - 📷 `QR Scanner` (`/checkin`)
-    - 🎟️ `Registrations` (`/registrations`)
-    - 👥 `Users & RBAC` (`/users`) — *Visible to Super Admins / Admins*
-    - 💰 `Payments & Orders` (`/payments`)
-    - 📜 `Audit Logs` (`/audit-logs`)
-    - ⚙️ `Settings` (`/settings`)
-  - User Status Footer: User Name, Assigned Role Badge (`SUPER_ADMIN`, `HOST`, etc.), Logout button.
-- **Top Header Bar:**
-  - Route Breadcrumb indicator.
-  - Active Role Pill (e.g. `SUPER_ADMIN`).
-  - Environment Status Indicator (`Local` / `Production`).
-- **Main Viewport Area:** `<DashboardRouteGuard>{children}</DashboardRouteGuard>`
+### `/venues`
 
----
+Venue discovery provides location context for experiences. Venue information should remain subordinate to the event experience rather than becoming a conventional real-estate-style directory.
 
-### Page 1: Overview & Analytics (`/`)
+### `/become-a-host`
 
-#### Dashboard Cards & Charts Grid
-1. **Summary KPI Grid (4 Cards):**
-   - Total Gross Revenue (`₹XXX,XXX`)
-   - Total Tickets Sold (`XXX`)
-   - Active Live Events (`X`)
-   - Checked-in Attendees (`XXX`)
-2. **Recharts Visualizations:**
-   - Chart 1: Revenue Trend Line Chart.
-   - Chart 2: Event Registration Volume Bar Chart.
-3. **Recent Activity Feed Table:**
-   - Recent ticket sales, host applications, check-in timestamps.
+The host application page combines brand storytelling with a structured application form. The form collects enough information for operational review while keeping completion friction reasonable.
 
----
+Submission states must clearly distinguish:
 
-### Page 2: Event Management & Creation (`/events`, `/events/create`)
+- Validation errors.
+- Duplicate/pending application.
+- Successful database submission.
+- Notification/email warning when applicable.
 
-#### Event List Table View (`/events`)
-- Columns: `Cover Thumb`, `Event Title`, `Date & Time`, `Venue`, `Host`, `Capacity Progress Bar`, `Status Tag` (`DRAFT`, `PUBLISHED`, `CANCELLED`), `Actions`.
-- Actions: `Edit`, `View Details`, `Toggle Publish`, `Delete`.
+## 5. Authentication UX
 
-#### Multi-Step Event Creation Wizard (`/events/create`)
-9 Step Sections:
-1. **Basic Info:** Title, Tagline, Short Summary.
-2. **Category & Vibe:** Primary category, vibe tag pills.
-3. **Schedule & Time:** Start Date/Time, End Date/Time, Timezone.
-4. **Venue Details:** Venue Name, Full Address, City, Google Maps Embed URL.
-5. **Capacity & Pricing:** Total Capacity seats, Ticket Price (`₹`), Seat locks.
-6. **Media Upload:** Cover Image file upload / URL input, gallery photos.
-7. **Host Assignment:** Dropdown selecting host profile assigned to event.
-8. **Instructions & Rules:** Attendee guidelines, age limits, refund terms.
-9. **Preview & Publish:** Summary card review before publishing.
+The login flow supports Firebase-based identity establishment, including phone OTP and available Firebase providers such as Google.
 
----
+A key implementation rule is that the client must not assume the server session cookie exists immediately after Firebase authentication. The session endpoint establishes the cookie and returns the profile in the same response.
 
-### Page 3: QR Code Check-in Scanner (`/checkin`, `/scanner`)
+```mermaid
+sequenceDiagram
+    participant UI
+    participant Firebase
+    participant SessionAPI
+    participant DB
 
-#### Operational View Layout
-- **Camera Scanner Container:** HTML5 Camera feed with scanning frame overlay.
-- **Manual Code Input Fallback:** TextInput for typing ticket code (`TSS-XXXX-XXXX`) when camera is unavailable.
-- **Verification Result Banner:**
-  - `VALID PASS (Green)` — Shows Attendee Name, Ticket Code, Event Title, Check-in Timestamp.
-  - `ALREADY CHECKED-IN (Amber Warning)` — Prevents double entry, displays prior check-in time.
-  - `INVALID PASS (Red Alert)` — Ticket code not found or cancelled.
-- **Live Stream Stream Feed:** Live list of scanned attendees in current event session.
+    UI->>Firebase: Authenticate
+    Firebase-->>UI: ID token
+    UI->>SessionAPI: Create server session
+    SessionAPI->>DB: Read/sync profile
+    DB-->>SessionAPI: Profile
+    SessionAPI-->>UI: Session + profile
+    UI->>UI: Navigate
+```
 
----
+## 6. Checkout UX
 
-### Page 4: User & RBAC Access Management (`/users`)
+Checkout should make the purchase state explicit:
 
-#### Layout Architecture
-- **Summary Cards Header:** Total Dashboard Users, Pending Host Applications, Host Accounts.
-- **Tab 1: Team Users Table:**
-  - Columns: `User Name & Email`, `Role Tag` (`SUPER_ADMIN`, `ADMIN`, `HOST`, `CHECKIN_STAFF`, etc.), `Access Description`, `Account Status`, `Created Date`, `Action Button`.
-  - **Edit User Button:** Opens `Edit User & Role` Modal.
-- **Tab 2: Host Applications Table:**
-  - Columns: `Applicant Name & Email`, `Host Profile / Organization`, `Event Direction / Vibe`, `Status Badge` (`PENDING`, `APPROVED`, `REJECTED`), `Action Buttons`.
-  - **Review Application:** View full applicant details modal, click `Approve & Invite` or `Reject`.
-- **Modal 1: Create Dashboard User Invitation:**
-  - Inputs: Full Name, Email, Phone, Role dropdown.
-  - Action: Triggers Resend API invitation email with secure activation link.
-- **Modal 2: Edit User & Role Modal:**
-  - Inputs: Full Name, Phone, Role Dropdown (`Super Admin`, `Admin`, `Host`, `Event Manager`, `Check-in Staff`, `Editor`, `Finance`, `Support`), Account Status (`ACTIVE`, `SUSPENDED`).
-  - Action: Calls `PATCH /api/users` to immediately update DB profiles and `user_roles`.
+1. Selected event.
+2. Quantity.
+3. Price calculation.
+4. Attendee/contact requirements.
+5. Razorpay payment.
+6. Verification state.
+7. Ticket/pass confirmation.
 
----
+Never imply a booking is confirmed merely because the Razorpay modal opened. Confirmation follows successful server-side verification/payment processing.
 
-## 📌 4. Component Placement Quick Reference
+## 7. Ticket / Digital Pass
 
-| Component / View | File Path | Layout Container / Position |
-| :--- | :--- | :--- |
-| **Public Navbar** | [`frontend/components/layout/Navbar.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/frontend/components/layout/Navbar.tsx) | Sticky top of viewport across all public pages |
-| **Public Footer** | [`frontend/components/layout/Footer.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/frontend/components/layout/Footer.tsx) | Bottom of viewport across all public pages |
-| **Event Card** | [`frontend/components/event/EventCard.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/frontend/components/event/EventCard.tsx) | 3-column grid container in `/` and `/events` |
-| **Ticket Pass Stub** | [`frontend/app/(account)/ticket/[ticketCode]/page.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/frontend/app/%28account%29/ticket/%5BticketCode%5D/page.tsx) | Centered glass ticket container with tear notches |
-| **Dashboard Sidebar** | [`dashboard/components/layout/DashboardSidebar.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/dashboard/components/layout/DashboardSidebar.tsx) | Fixed left navigation panel on all `/admin` routes |
-| **Camera Scanner** | [`dashboard/app/(dashboard)/checkin/page.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/dashboard/app/%28dashboard%29/checkin/page.tsx) | Main operational focus view on `/checkin` |
-| **Users & Role Table** | [`dashboard/app/(dashboard)/users/page.tsx`](file:///D:/Freelance/Project-12%20%28TheSocialScene/dashboard/app/%28dashboard%29/users/page.tsx) | Main table container on `/users` tab |
+The digital pass is a functional credential first and a branded artifact second.
+
+Required information should include:
+
+- Event.
+- Attendee.
+- Date/time.
+- Venue.
+- Ticket/pass identifier.
+- QR payload.
+- Barcode where used.
+
+QR and barcode visual elements must retain sufficient contrast and quiet space for reliable scanning.
+
+## 8. Dashboard Design
+
+The dashboard is a separate private application at `admin.thesocialscene.club`.
+
+```mermaid
+flowchart LR
+    SIDEBAR[Responsive Sidebar]
+    HEADER[Dashboard Header]
+    MAIN[Operational Content]
+    SIDEBAR --> MAIN
+    HEADER --> MAIN
+```
+
+Primary areas include:
+
+- Overview/analytics.
+- Event management.
+- Event creation/editing.
+- Registrations/attendees.
+- Host applications.
+- User and RBAC management.
+- Payments/orders.
+- Scanner/check-in.
+- Audit logs.
+- Settings and account controls.
+
+## 9. User & RBAC UI
+
+The users area separates identity, role assignment and access status.
+
+Important states:
+
+| Dimension | Examples |
+|---|---|
+| Role | `SUPER_ADMIN`, `ADMIN`, `HOST`, `CHECKIN_STAFF`, `USER` |
+| Access status | `ACTIVE`, `DEACTIVATED`, `SUSPENDED` |
+| Host application | `PENDING`, `APPROVED`, `REJECTED` |
+
+A user may have more than one role. UI should therefore render role collections rather than assuming one role per account.
+
+## 10. Event Management UI
+
+The event management interface supports event creation/editing, publishing state, venue/category selection, pricing/capacity, media and host assignment.
+
+Capacity displays must distinguish total capacity, registered/sold quantity and remaining availability. Never derive business-critical inventory from presentation-only values.
+
+## 11. Scanner UI
+
+The scanner must be optimized for rapid repeated use:
+
+- Camera preview should be visually dominant.
+- Scan target should have a clear frame.
+- Success/error states should be unmistakable.
+- Manual ticket-code entry remains available.
+- Already-checked-in tickets must not be presented as valid new entries.
+- The operator should not need to navigate away for every scan.
+
+## 12. Responsive Rules
+
+### Mobile
+
+- Single-column content where appropriate.
+- Touch targets should be comfortably tappable.
+- Horizontal filter controls may scroll instead of wrapping into excessive rows.
+- Tables should become cards, horizontal scroll regions, or focused mobile views rather than unreadable compressed grids.
+- Fixed elements must respect browser safe areas and must not trap scroll.
+
+### Desktop
+
+- Use available width without producing excessively long reading lines.
+- Dashboard uses persistent navigation where practical.
+- Event discovery uses multi-column grids.
+- Detail pages can use two-column layouts with a booking panel.
+
+## 13. Motion & Performance
+
+Animation must not be used as a substitute for loading feedback.
+
+Current performance-oriented UI practices include:
+
+- Immediate route loading UI via `app/loading.tsx`.
+- Next.js client navigation.
+- Idle prefetching of primary routes.
+- Cached public page/data segments.
+- Next.js Image optimization for event imagery.
+
+Avoid adding large client-only libraries for simple visual effects.
+
+## 14. Image Strategy
+
+Preferred approach:
+
+1. Store production event imagery using the platform's configured image/storage mechanism.
+2. Render remote images through Next.js `<Image>` where supported.
+3. Provide meaningful `alt` text.
+4. Use responsive `sizes` values so mobile devices do not download desktop-sized assets.
+5. Preserve aspect ratio to avoid layout shift.
+
+For documentation visuals, Mermaid diagrams are preferred for architecture. Stable UI screenshots may be placed under `docs/images/` and referenced with relative paths once the screenshots are known to represent the current UI.
+
+## 15. UI Change Checklist
+
+Before merging a UI change:
+
+- Check desktop and mobile.
+- Check keyboard focus and interactive states.
+- Check loading, empty and error states.
+- Check long titles and missing images.
+- Check authenticated and unauthenticated states.
+- Check Navbar behavior after scroll.
+- Check that fixed/sticky elements do not block content.
+- Check route navigation speed and prefetch behavior.
+- Confirm no duplicate global components were introduced.
