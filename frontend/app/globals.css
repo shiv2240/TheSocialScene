@@ -92,8 +92,8 @@ body .retro-nav:not(body > .retro-nav) { display: none; }
   .retro-nav .group > div:nth-child(2) { min-width: 0; max-width: min(47vw, 190px); overflow: hidden; }
   .retro-nav .group > div:nth-child(2) > div:first-child { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .retro-nav .group > div:nth-child(2) > div:last-child { font-size: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .retro-nav .flex.md\\:hidden { flex: 0 0 auto; gap: 5px; }
-  .retro-nav .flex.md\\:hidden a:last-child { white-space: nowrap; }
+  .retro-nav .flex.md\:hidden { flex: 0 0 auto; gap: 5px; }
+  .retro-nav .flex.md\:hidden a:last-child { white-space: nowrap; }
   .retro-mobile-dock { pointer-events: none; }
   .retro-mobile-dock > .mobile-dock-surface { pointer-events: auto; background: rgba(237, 228, 208, 0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
 }
