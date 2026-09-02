@@ -13,10 +13,10 @@ export async function POST(request: NextRequest) {
     const firebaseAuth = getFirebaseAdminAuth();
     const supabase = getSupabaseAdmin();
 
-    // Step 1: verify token (must happen first — we need decoded.uid for DB lookup)
-    const decoded = await firebaseAuth.verifyIdToken(idToken, true);
+    // Local signature verification avoids an extra Firebase network request.
+    const decoded = await firebaseAuth.verifyIdToken(idToken, false);
 
-    // Step 2: createSessionCookie + DB profile lookup in parallel
+    // Session cookie creation and profile lookup are independent operations.
     const lookupFilters = [`firebase_uid.eq.${decoded.uid}`];
     if (decoded.email) lookupFilters.push(`email.eq.${decoded.email}`);
     if (decoded.phone_number) lookupFilters.push(`phone.eq.${decoded.phone_number}`);
@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
         .maybeSingle(),
     ]);
     if (findError) throw findError;
-
 
     const profilePayload: Record<string, unknown> = {
       firebase_uid: decoded.uid,
