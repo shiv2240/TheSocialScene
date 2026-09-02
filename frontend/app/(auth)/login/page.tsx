@@ -31,19 +31,43 @@ function LoginContent() {
     const response = await fetch('/api/auth/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
       body: JSON.stringify({ idToken })
     });
-    const body = await response.json();
+    const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || 'Unable to establish your session.');
   };
 
   const continueAfterAuth = async () => {
-    const response = await fetch('/api/profile', { cache: 'no-store', credentials: 'include' });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || 'Unable to load your profile.');
-    const destination = body.profile?.onboarding_completed ? next : `/onboarding?next=${encodeURIComponent(next)}`;
-    router.replace(destination);
-    router.refresh();
+    // The session endpoint sets the HttpOnly cookie in its response. In some
+    // browsers the first request made immediately after popup authentication
+    // can race with that cookie becoming available to the next request.
+    // Retry only the authenticated profile read; never turn a real 401 into a
+    // successful response.
+    const retryDelays = [0, 75, 150, 300];
+    let lastStatus = 0;
+
+    for (const delay of retryDelays) {
+      if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+      const response = await fetch('/api/profile', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      lastStatus = response.status;
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) {
+        const destination = body.profile?.onboarding_completed ? next : `/onboarding?next=${encodeURIComponent(next)}`;
+        router.replace(destination);
+        router.refresh();
+        return;
+      }
+      if (response.status !== 401) {
+        throw new Error(body.error || 'Unable to load your profile.');
+      }
+    }
+
+    throw new Error(lastStatus === 401 ? 'Your session is still being established. Please try again.' : 'Unable to load your profile.');
   };
 
   useEffect(() => {
@@ -98,9 +122,6 @@ function LoginContent() {
     setGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      // Always show Google's account chooser so users can explicitly select
-      // which Google account should be used instead of silently reusing the
-      // browser's currently active account.
       provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(getFirebaseAuth(), provider);
       await establishSession();
