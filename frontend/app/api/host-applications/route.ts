@@ -21,6 +21,39 @@ const applicationSchema = z.object({
   website_check: z.string().max(0).optional().or(z.literal('')),
 });
 
+const ADMIN_EMAIL = 'support@thesocialscene.club';
+const FROM_EMAIL = 'The Social Scene <noreply@thesocialscene.club>';
+
+function escapeHtml(value: string | null | undefined) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function buildHostApplicationEmail(data: z.infer<typeof applicationSchema>, appId: string) {
+  const row = (field: string, value: string | null | undefined) =>
+    value ? `<tr><td style="padding:6px 12px;color:#1e1a14;font-weight:700;font-size:11px;white-space:nowrap;vertical-align:top;text-transform:uppercase;letter-spacing:0.08em;">${escapeHtml(field)}</td><td style="padding:6px 12px;color:#2b2520;font-size:12px;vertical-align:top;">${escapeHtml(value)}</td></tr>` : '';
+
+  return `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;background:#ede4d0;padding:32px;">
+    <div style="max-width:560px;margin:0 auto;background:#f7f0e3;border:2px solid #1e1a14;border-radius:16px;overflow:hidden;">
+      <div style="background:#c93a2a;padding:24px 28px;"><p style="margin:0;font-size:10px;color:#f7f0e3;text-transform:uppercase;letter-spacing:.1em;font-weight:700;">The Social Scene</p><h1 style="margin:6px 0 0;font-size:26px;color:#f7f0e3;font-weight:900;">NEW HOST APPLICATION</h1></div>
+      <div style="padding:24px 28px;">
+        <p style="margin:0 0 16px;font-size:12px;color:#1e1a14;">A new host application has been submitted.</p>
+        <table style="width:100%;border-collapse:collapse;background:#ede4d0;border-radius:10px;overflow:hidden;border:1.5px solid rgba(30,26,20,.15);"><tbody>
+          ${row('Name', data.full_name)}${row('Email', data.email)}${row('Phone', data.phone)}${row('City', data.city)}${row('Org / Club', data.organization_name)}${row('Freq.', data.expected_frequency)}${row('Event types', data.event_types.join(', '))}${row('Instagram', data.instagram)}${row('Website', data.website)}
+        </tbody></table>
+        <div style="margin-top:16px;background:#ede4d0;border:1.5px solid rgba(30,26,20,.15);border-radius:10px;padding:14px 16px;"><p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:.08em;">Experience</p><p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${escapeHtml(data.experience || '—')}</p></div>
+        <div style="margin-top:12px;background:#ede4d0;border:1.5px solid rgba(30,26,20,.15);border-radius:10px;padding:14px 16px;"><p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:.08em;">Proposed Event</p><p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${escapeHtml(data.proposed_event || '—')}</p></div>
+        <div style="margin-top:12px;background:#ede4d0;border:1.5px solid rgba(30,26,20,.15);border-radius:10px;padding:14px 16px;"><p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:.08em;">Why they want to host</p><p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${escapeHtml(data.why_host)}</p></div>
+      </div>
+      <div style="padding:16px 28px;border-top:2px solid rgba(30,26,20,.1);"><p style="margin:0;font-size:10px;color:rgba(30,26,20,.4);text-transform:uppercase;letter-spacing:.08em;">Application ID: ${escapeHtml(appId)}</p></div>
+    </div>
+  </body></html>`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const parsed = applicationSchema.safeParse(await request.json());
@@ -80,10 +113,7 @@ export async function POST(request: NextRequest) {
         experience: data.experience || null,
         proposed_event: data.proposed_event || null,
         expected_frequency: data.expected_frequency || null,
-        social_links: {
-          instagram: data.instagram || null,
-          website: data.website || null,
-        },
+        social_links: { instagram: data.instagram || null, website: data.website || null },
         why_host: data.why_host,
       })
       .select('id,status,created_at')
@@ -96,72 +126,49 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    // ─── Fire-and-forget admin notification email ────────────────────────────
-    if (process.env.RESEND_API_KEY) {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const appId = application?.id ?? 'N/A';
-      const row = (field: string, value: string | null | undefined) =>
-        value ? `<tr><td style="padding:6px 12px;color:#1e1a14;font-ght:700;font-size:11px;white-space:nowrap;vertical-align:top;text-transform:uppercase;letter-spacing:0.08em;">${field}</td><td style="padding:6px 12px;color:#2b2520;font-size:12px;vertical-align:top;">${value}</td></tr>` : '';
-
-      resend.emails.send({
-        from: 'The Social Scene <noreply@thesocialscene.club>',
-        to:   ['support@thesocialscene.club'],
-        subject: `🎉 New Host Application — ${data.full_name} (${data.city})`,
-        html: `
-          <div style="font-family:'Helvetica Neue',Arial,sans-serif;background:#ede4d0;padding:32px;">
-            <div style="max-width:560px;margin:0 auto;background:#f7f0e3;border:2px solid #1e1a14;border-radius:16px;overflow:hidden;">
-              <!-- Header -->
-              <div style="background:#c93a2a;padding:24px 28px;">
-                <p style="margin:0;font-size:10px;color:rgba(247,240,227,0.7);text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">● The Social Scene</p>
-                <h1 style="margin:6px 0 0;font-size:26px;color:#f7f0e3;letter-spacing:0.03em;font-weight:900;">NEW HOST APPLICATION</h1>
-              </div>
-
-              <!-- Body -->
-              <div style="padding:24px 28px;">
-                <p style="margin:0 0 16px;font-size:12px;color:#1e1a14;">A new host application has been submitted. Review the details below and approve or reject in your Supabase dashboard.</p>
-                <table style="width:100%;border-collapse:collapse;background:#ede4d0;border-radius:10px;overflow:hidden;border:1.5px solid rgba(30,26,20,0.15);">
-                  <tbody>
-                    ${row('Name',       data.full_name)}
-                    ${row('Email',      data.email)}
-                    ${row('Phone',      data.phone)}
-                    ${row('City',       data.city)}
-                    ${row('Org / Club', data.organization_name)}
-                    ${row('Freq.',      data.expected_frequency)}
-                    ${row('Event types', data.event_types.join(', '))}
-                    ${row('Instagram',  data.instagram)}
-                    ${row('Website',    data.website)}
-                  </tbody>
-                </table>
-
-                <div style="margin-top:16px;background:#ede4d0;border:1.5px solid rgba(30,26,20,0.15);border-radius:10px;padding:14px 16px;">
-                  <p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:0.08em;">Experience</p>
-                  <p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${data.experience || '—'}</p>
-                </div>
-                <div style="margin-top:12px;background:#ede4d0;border:1.5px solid rgba(30,26,20,0.15);border-radius:10px;padding:14px 16px;">
-                  <p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:0.08em;">Proposed Event</p>
-                  <p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${data.proposed_event || '—'}</p>
-                </div>
-                <div style="margin-top:12px;background:#ede4d0;border:1.5px solid rgba(30,26,20,0.15);border-radius:10px;padding:14px 16px;">
-                  <p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#c93a2a;text-transform:uppercase;letter-spacing:0.08em;">Why they want to host</p>
-                  <p style="margin:0;font-size:12px;color:#2b2520;line-height:1.6;">${data.why_host}</p>
-                </div>
-              </div>
-
-              <!-- Footer -->
-              <div style="padding:16px 28px;border-top:2px solid rgba(30,26,20,0.1);display:flex;justify-content:space-between;align-items:center;">
-                <p style="margin:0;font-size:10px;color:rgba(30,26,20,0.4);text-transform:uppercase;letter-spacing:0.08em;">Application ID: ${appId}</p>
-                <p style="margin:0;font-size:10px;color:rgba(30,26,20,0.4);">thesocialscene.club</p>
-              </div>
-            </div>
-          </div>
-        `,
-      }).catch((err: unknown) => {
-        console.error('[HOST APPLICATION][EMAIL]', err);
-      });
+    if (!process.env.RESEND_API_KEY) {
+      console.error('[HOST APPLICATION][EMAIL] RESEND_API_KEY is not configured', { applicationId: application.id });
+      return NextResponse.json({ application, warning: 'Application saved, but notification email is not configured.' }, { status: 201 });
     }
 
-    return NextResponse.json({ application }, { status: 201 });
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const result = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: [ADMIN_EMAIL],
+        replyTo: [email],
+        subject: `New Host Application — ${data.full_name} (${data.city})`,
+        html: buildHostApplicationEmail(data, application.id),
+        text: [
+          'NEW HOST APPLICATION',
+          `Application ID: ${application.id}`,
+          `Name: ${data.full_name}`,
+          `Email: ${data.email}`,
+          `Phone: ${data.phone || '—'}`,
+          `City: ${data.city}`,
+          `Organization: ${data.organization_name || '—'}`,
+          `Event types: ${data.event_types.join(', ')}`,
+          `Expected frequency: ${data.expected_frequency || '—'}`,
+          `Instagram: ${data.instagram || '—'}`,
+          `Website: ${data.website || '—'}`,
+          `Experience: ${data.experience || '—'}`,
+          `Proposed event: ${data.proposed_event || '—'}`,
+          `Why host: ${data.why_host}`,
+        ].join('\n'),
+      });
 
+      if (result.error) {
+        console.error('[HOST APPLICATION][EMAIL] Resend rejected notification', { applicationId: application.id, error: result.error });
+        return NextResponse.json({ application, warning: 'Application saved, but the notification email could not be sent.' }, { status: 201 });
+      }
+
+      console.info('[HOST APPLICATION][EMAIL] Notification sent', { applicationId: application.id, emailId: result.data?.id, to: ADMIN_EMAIL });
+    } catch (emailError) {
+      console.error('[HOST APPLICATION][EMAIL] Notification failed', { applicationId: application.id, error: emailError });
+      return NextResponse.json({ application, warning: 'Application saved, but the notification email could not be sent.' }, { status: 201 });
+    }
+
+    return NextResponse.json({ application, emailSent: true }, { status: 201 });
   } catch (error) {
     console.error('[HOST APPLICATION][POST]', error);
     return NextResponse.json({ error: 'Unable to submit your host application right now. Please try again.' }, { status: 500 });
