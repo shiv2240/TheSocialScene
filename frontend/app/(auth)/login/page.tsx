@@ -26,7 +26,9 @@ function LoginContent() {
 
   const establishSession = async () => {
     const auth = getFirebaseAuth();
-    const idToken = await auth.currentUser?.getIdToken(true);
+    // Use the already-cached Firebase ID token when possible. Forcing a refresh
+    // adds an avoidable network round-trip before our session endpoint runs.
+    const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error('Unable to establish authentication.');
     const response = await fetch('/api/auth/session', {
       method: 'POST',
