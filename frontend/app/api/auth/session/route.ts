@@ -11,21 +11,27 @@ export async function POST(request: NextRequest) {
     if (!idToken || typeof idToken !== 'string') return NextResponse.json({ error: 'Missing Firebase ID token.' }, { status: 400 });
 
     const firebaseAuth = getFirebaseAdminAuth();
-    const decoded = await firebaseAuth.verifyIdToken(idToken, true);
-    const sessionCookie = await firebaseAuth.createSessionCookie(idToken, { expiresIn: FIREBASE_SESSION_MAX_AGE });
-
     const supabase = getSupabaseAdmin();
+
+    // Step 1: verify token (must happen first — we need decoded.uid for DB lookup)
+    const decoded = await firebaseAuth.verifyIdToken(idToken, true);
+
+    // Step 2: createSessionCookie + DB profile lookup in parallel
     const lookupFilters = [`firebase_uid.eq.${decoded.uid}`];
     if (decoded.email) lookupFilters.push(`email.eq.${decoded.email}`);
     if (decoded.phone_number) lookupFilters.push(`phone.eq.${decoded.phone_number}`);
 
-    const { data: existingProfile, error: findError } = await supabase
-      .from('profiles')
-      .select('id, phone, phone_verified, firebase_uid, email, onboarding_completed')
-      .or(lookupFilters.join(','))
-      .limit(1)
-      .maybeSingle();
+    const [sessionCookie, { data: existingProfile, error: findError }] = await Promise.all([
+      firebaseAuth.createSessionCookie(idToken, { expiresIn: FIREBASE_SESSION_MAX_AGE }),
+      supabase
+        .from('profiles')
+        .select('id, phone, phone_verified, firebase_uid, email, onboarding_completed')
+        .or(lookupFilters.join(','))
+        .limit(1)
+        .maybeSingle(),
+    ]);
     if (findError) throw findError;
+
 
     const profilePayload: Record<string, unknown> = {
       firebase_uid: decoded.uid,

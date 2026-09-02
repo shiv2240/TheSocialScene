@@ -26,7 +26,12 @@ export function Navbar() {
   const searchInput = useRef<HTMLInputElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadSession = useCallback(async () => {
+  const lastFetchRef = useRef<number>(0);
+
+  const loadSession = useCallback(async (force = false) => {
+    // Throttle: skip network call if data is < 30s old (unless forced by profile-update event)
+    if (!force && Date.now() - lastFetchRef.current < 30_000) return;
+    lastFetchRef.current = Date.now();
     try {
       const res = await fetch('/api/profile', { cache: 'no-store' });
       if (!res.ok) { setSignedIn(false); setProfile(null); return; }
@@ -37,14 +42,17 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
-    void loadSession();
-    window.addEventListener('tss:profile-updated', () => void loadSession());
-    window.addEventListener('focus', () => void loadSession());
+    void loadSession(true); // always fetch fresh on mount
+    const onProfileUpdate = () => void loadSession(true); // force on explicit update
+    const onFocus = () => void loadSession();              // throttled on focus
+    window.addEventListener('tss:profile-updated', onProfileUpdate);
+    window.addEventListener('focus', onFocus);
     return () => {
-      window.removeEventListener('tss:profile-updated', () => void loadSession());
-      window.removeEventListener('focus', () => void loadSession());
+      window.removeEventListener('tss:profile-updated', onProfileUpdate);
+      window.removeEventListener('focus', onFocus);
     };
   }, [loadSession]);
+
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
