@@ -1,158 +1,205 @@
-# The Social Scene — QA & Production Hardening Audit
+# The Social Scene — Current QA Audit
 
-**Audit date:** 2026-08-26  
-**Scope:** public website, authentication, booking, Razorpay test flow, ticketing, attendance, dashboard, Supabase database/security, event creation and media handling.
+This document records the current production QA model, verified architecture, and known areas requiring verification. It is not a historical changelog.
 
-## Executive status
+## 1. QA Scope
 
-The application is not yet certified as a fully end-to-end production release because authenticated browser execution and Razorpay test checkout cannot be driven from the current agent environment. The code/database audit has nevertheless identified and fixed several production-critical issues.
+The platform consists of:
 
-| Area | Status | Notes |
-|---|---|---|
-| Firebase + 2Factor authentication | PASS (code) | Mobile OTP remains primary; email magic-link remains supported. |
-| Email-only user booking contact | PASS (code) | Booking now requires a verified mobile number. |
-| 2Factor account phone linking | PASS (code) | Dedicated authenticated flow exists; duplicate phone ownership is blocked. |
-| Razorpay signature verification | PASS (code) | HMAC validation plus provider-side payment lookup. |
-| Razorpay amount/currency/order validation | PASS (code) | Exact order, amount, currency and captured status checked. |
-| Razorpay webhook idempotency | HARDENED | Duplicate events protected; stale PROCESSING records can recover. |
-| Registration race conditions | HARDENED | Unique active registration constraint + race-safe RPC. |
-| Ticket generation | PASS (code) | Ticket created only through server-side confirmation RPC. |
-| QR payload | PASS (code) | Ticket code is the server-owned QR payload. |
-| Check-in authorization | PASS (code) | Dashboard API checks staff roles before calling the DB function. |
-| Duplicate check-in | PASS (code) | DB row lock + existing check-in check. |
-| Admin event listing | PASS (code) | Reads real database events. |
-| Admin event publishing | PASS (code) | Server-side role validation and audit logging. |
-| Admin Create Event | FIXED | Replaced mock-only wizard with real API persistence. |
-| Event image upload | FIXED | Added authenticated server-side upload to `event-images`, 5 MB limit and MIME allowlist. |
-| Supabase DB security | HARDENED | Privileged RPCs restricted previously; remaining advisor items documented below. |
-| Supabase performance | HARDENED | Missing FK indexes added; RLS init-plan warnings fixed. |
-| Vercel dashboard build | BLOCKED FROM AGENT | Connected Vercel API does not expose the dashboard project; local network cannot reach GitHub. |
-| Authenticated browser UAT | BLOCKED FROM AGENT | Requires the user's browser session/device. |
+- Public event discovery website.
+- Firebase-based attendee authentication.
+- Event booking and Razorpay payments.
+- Digital tickets and QR check-in.
+- Host application workflow.
+- Private dashboard with RBAC.
+- Analytics and GA4 telemetry.
+- Supabase PostgreSQL persistence.
 
-## Critical findings fixed
+## 2. Critical User Journeys
 
-### 1. Booking could previously attach an unverified phone
+| Journey | Expected result | Priority |
+|---|---|---:|
+| Browse homepage | Public content renders without authentication | P0 |
+| Browse events | Published events load and filter correctly | P0 |
+| Open event detail | Published event data loads by slug | P0 |
+| Phone authentication | OTP/Firebase identity/session established | P0 |
+| Google authentication | Firebase sign-in and server session establish correctly | P1 |
+| Complete onboarding | Profile state is persisted | P0 |
+| Start checkout | Capacity and booking requirements are validated | P0 |
+| Create Razorpay order | Order is created without duplicate/invalid booking | P0 |
+| Complete payment | Server verification confirms payment | P0 |
+| Webhook replay | Duplicate webhook does not duplicate financial/ticket records | P0 |
+| Receive ticket | Digital ticket is created and visible to attendee | P0 |
+| Scan ticket | Valid ticket is checked in exactly once | P0 |
+| Submit host application | Application is saved to DB and notification is attempted | P0 |
+| Review host application | Authorized dashboard user can approve/reject | P1 |
+| Manage roles | Authorized admin can assign/revoke supported roles | P0 |
+| Audit actions | Sensitive administrative actions are recorded | P1 |
+| Analytics | Dashboard metrics and GA4 telemetry are available | P1 |
 
-The booking API accepted a syntactically valid 10-digit number and stored it before payment. The frontend displayed OTP verification, but the server did not enforce `phone_verified`.
+## 3. Authentication QA
 
-**Fixed:** `/api/payments/create-order` now requires:
+### Firebase/session contract
 
-- profile exists;
-- `phone` exists;
-- `phone_verified = true`;
-- request phone exactly matches the verified profile phone.
+The public application uses Firebase for identity and a server session cookie for authenticated server requests.
 
-### 2. Email/Google users need a distinct phone-linking flow
+The login sequence must be:
 
-The existing account-phone OTP endpoints operate against the currently authenticated Firebase user. This prevents a phone OTP from accidentally switching an email user's account to a different Firebase phone identity.
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Firebase
+    participant SessionAPI
+    participant Supabase
 
-### 3. Event creation was a mock UI
+    Browser->>Firebase: Authenticate
+    Firebase-->>Browser: ID token
+    Browser->>SessionAPI: POST token
+    SessionAPI->>Firebase: Verify token
+    SessionAPI->>Supabase: Read/sync profile
+    Supabase-->>SessionAPI: Profile
+    SessionAPI-->>Browser: Session + profile
+```
 
-The previous dashboard Create Event wizard only displayed an alert and redirected. It did not persist events.
+Regression to avoid: Navbar requesting `/api/profile` as part of initial login before the session cookie is established.
 
-**Fixed:** added authenticated `/api/events/create` with:
+### Authentication test matrix
 
-- role authorization;
-- Zod validation;
-- slug uniqueness check;
-- date ordering validation;
-- registration deadline validation;
-- venue creation;
-- event creation;
-- publish/draft support;
-- audit logging;
-- rollback of a newly-created venue when event creation fails.
+- New phone user.
+- Existing phone user.
+- Email/Google user.
+- User without onboarding completion.
+- User with completed onboarding.
+- Signed-out user visiting protected route.
+- Expired/invalid session.
+- Deactivated/suspended dashboard account.
 
-### 4. Event image upload was not implemented
+## 4. Booking & Payment QA
 
-The previous wizard accepted an image URL rather than an actual upload.
+Payment state must be derived from server-verified state, not from client UI callbacks alone.
 
-**Fixed:** added `/api/events/upload-image`:
+Test:
 
-- authenticated dashboard user required;
-- event-management role required;
-- JPG/PNG/WebP only;
-- maximum 5 MB;
-- random non-colliding object path;
-- server-side Supabase Storage upload;
-- public URL returned for event cover use.
+1. Valid published event with available capacity.
+2. Event at capacity.
+3. Concurrent checkout attempts.
+4. Razorpay order creation failure.
+5. Payment success followed by verification.
+6. Verification failure.
+7. Duplicate webhook delivery.
+8. Payment/order mismatch.
+9. Ticket generation failure after payment.
+10. Reconciliation of order, payment, registration and ticket records.
 
-A public `event-images` bucket was created in Supabase. Uploads remain server-side using the service role.
+## 5. Host Application QA
 
-### 5. Registration concurrency
+The endpoint `/api/host-applications` should:
 
-Two simultaneous checkout attempts could both create PENDING registrations before the application checked for an existing record.
+- Validate submitted fields.
+- Reject invalid/duplicate pending submissions according to business rules.
+- Persist the application in `host_applications`.
+- Send notification through Resend to the configured administration mailbox.
+- Await the Resend API call.
+- Log the Resend error/ID.
+- Return a warning rather than pretending the email succeeded when persistence succeeded but email failed.
 
-**Fixed:** unique partial index:
+Current configured notification destination in application code: `support@thesocialscene.club`.
 
-`registrations(event_id, user_id) WHERE status IN ('PENDING','CONFIRMED')`
+## 6. RBAC QA
 
-The `create_pending_registration` RPC now catches the race and returns the existing registration instead of surfacing a duplicate-key failure.
+Authorization is a server-side concern. Hiding a button is not sufficient.
 
-### 6. Webhook PROCESSING lock recovery
+Test each sensitive operation with:
 
-A webhook could become permanently stuck in `PROCESSING` if the function crashed after claiming the event.
+- Unauthenticated user.
+- `USER`.
+- `HOST`.
+- `CHECKIN_STAFF`.
+- `ADMIN`.
+- `SUPER_ADMIN`.
+- Multiple concurrent roles.
+- Deactivated account.
+- Suspended account.
 
-**Fixed:** recent PROCESSING events remain protected against duplicate concurrent delivery; PROCESSING records older than 10 minutes become retryable.
+Confirm both UI visibility and API/server authorization.
 
-## Database hardening applied
+## 7. Scanner QA
 
-- Added indexes for previously unindexed foreign keys reported by Supabase Performance Advisor.
-- Optimized profile/registration/ticket RLS policies to evaluate `auth.uid()` through a statement-level subquery.
-- Added active-registration uniqueness protection.
-- Added `event-images` Storage bucket.
+```mermaid
+flowchart LR
+    CAMERA[Camera / Manual Code] --> DECODE[Decode ticket]
+    DECODE --> RPC[check_in_ticket]
+    RPC --> VALID{Valid?}
+    VALID -->|Yes| CHECK[Record check-in]
+    VALID -->|Already checked| DUP[Reject duplicate]
+    VALID -->|No| ERR[Invalid/cancelled]
+```
 
-## Remaining Supabase advisor items
+Test poor lighting, repeated scans, invalid codes, cancelled tickets, already checked-in tickets, manual code entry, camera permission denial and mobile browsers.
 
-### WARN — `get_my_dashboard_role()` SECURITY DEFINER exposed to authenticated users
+## 8. Performance QA
 
-This remains under review because existing dashboard code may still depend on the RPC. It should ultimately be removed from the exposed API surface once all callers are migrated to server-only role resolution.
+The current performance strategy includes cached public data, public HTTP caching, client navigation prefetching, router segment stale times, optimized images and database indexes.
 
-### WARN — leaked password protection disabled
+Performance tests should measure separately:
 
-This is an Auth project configuration setting. It should be enabled in Supabase Auth settings before public launch.
+- First page load.
+- Client-side navigation to prefetched route.
+- Client-side navigation to uncached route.
+- Server-rendered public route.
+- API response time.
+- Third-party provider latency.
 
-### INFO — RLS enabled without policies
+The sub-200 ms target should be interpreted as a perceived navigation target for cached/prefetched routes, not a guarantee for every uncached request or third-party transaction.
 
-Several server-only tables intentionally have no client policies. This is preferable to creating broad policies merely to silence the advisor. The application uses server-side service-role access for these operations.
+## 9. Analytics QA
 
-## Known UAT blockers
+Verify:
 
-The agent cannot safely perform the following without the user's authenticated browser/device:
+- GA4 measurement ID is configured only in client-safe variables.
+- Page views are emitted once per navigation.
+- Important event interactions use stable event names.
+- Dashboard analytics APIs authenticate correctly.
+- Provider failures do not break the dashboard UI.
 
-1. Complete dashboard login in the user's browser.
-2. Upload a real image through the dashboard UI.
-3. Create a real production event through the UI.
-4. Run a Razorpay test checkout requiring the user's browser/payment simulation.
-5. Scan a generated QR code using a physical/device camera.
+A previously observed production issue was `500 Unable to authenticate with Google Analytics` on the realtime analytics endpoint. This should be treated as an integration-health issue rather than a database performance issue.
 
-These are **not marked PASS** until manually exercised.
+## 10. Responsive QA
 
-## Recommended UAT sequence
+Minimum browser/device matrix:
 
-1. Dashboard login.
-2. Create a draft event.
-3. Upload JPG/PNG/WebP cover under 5 MB.
-4. Save draft and verify it appears in Events.
-5. Publish event.
-6. Open public event page.
-7. Log in with email magic link.
-8. Attempt checkout without phone — must be blocked.
-9. Add phone and complete 2Factor OTP — must attach phone to the same account.
-10. Create Razorpay test order.
-11. Complete test payment.
-12. Verify server-side payment confirmation.
-13. Verify registration + General ticket + QR ticket.
-14. Open dashboard guest list.
-15. Scan QR once — CHECK_IN.
-16. Scan same QR again — ALREADY_CHECKED_IN.
-17. Try wrong event — WRONG_EVENT.
-18. Try malformed/unknown ticket — INVALID_TICKET.
-19. Verify ticket status becomes USED.
-20. Verify audit/attendance record.
+- Desktop Chrome/Edge.
+- Mobile Chrome Android.
+- Safari iOS.
+- Narrow viewport around 320–375 px.
+- Tablet width.
 
-## Release recommendation
+Pay particular attention to the global floating/rounded Navbar, sticky booking controls, scanner camera permissions, modal scroll locking and tables.
 
-**Current classification: NOT YET FULLY CERTIFIED.**
+## 11. Data Integrity Checks
 
-The server/database architecture is materially stronger after this hardening pass, but release certification requires the final authenticated UAT sequence above, especially event creation/image upload, Razorpay test payment, ticket generation, and physical QR scanning.
+For production diagnosis, compare related records rather than trusting UI counts alone:
+
+```text
+registrations
+   └── orders
+        └── payments
+   └── tickets
+        └── checkins
+```
+
+Financial and inventory numbers should be derived from authoritative database state.
+
+## 12. Release Gate
+
+A production release should not be considered complete until:
+
+- `next build` passes for affected applications.
+- TypeScript compilation passes.
+- Authentication smoke tests pass.
+- Booking/payment smoke test passes in the intended environment.
+- Host application persistence/email behavior is verified.
+- Dashboard authorization is verified.
+- Scanner smoke test passes.
+- No critical console/network errors remain on primary flows.
+- Documentation is updated when architecture or user-visible behavior changes.
