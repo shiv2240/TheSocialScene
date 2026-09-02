@@ -1,1 +1,1 @@
-@AGENTS.md
+The Social Scene dashboard is the private Next.js 16.3.2 operations application. Use the repository's current architecture and `dashboard/AGENTS.md` as the source of truth for framework, authorization and operational conventions.
