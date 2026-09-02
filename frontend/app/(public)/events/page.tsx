@@ -3,7 +3,8 @@ import { Compass } from 'lucide-react';
 import { EventsSearch } from '@/components/event/EventsSearch';
 import { getPublicEvents } from '@/lib/events';
 
-export const dynamic = 'force-dynamic';
+// Event data is already cached for 30s in lib/events. Do not force the route
+// dynamic, otherwise every client navigation has to wait for a server render.
 export const revalidate = 30;
 
 function EventsSearchFallback() {
