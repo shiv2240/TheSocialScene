@@ -1,46 +1,88 @@
-# Analytics Architecture
+# Analytics — Current System
 
-The Social Scene should treat Google Analytics 4 (GA4) as a product/marketing analytics source, while Supabase remains the transactional system of record.
+The Social Scene currently has two related analytics surfaces:
 
-## Recommended implementation
+1. **GA4/web telemetry** for visitor and interaction analytics.
+2. **Dashboard operational analytics** derived from application/database data.
 
-- Install GA4 on the public frontend only.
-- Use `NEXT_PUBLIC_GA_MEASUREMENT_ID` for the measurement ID.
-- Track page views and key funnel events: event_view, registration_cta_click, checkout_started, phone_verification_started, payment_initiated, purchase, ticket_viewed, and ticket_downloaded.
-- Include non-PII event metadata such as event ID/slug, category, currency, value, and ticket quantity where appropriate.
-- Never send phone numbers, email addresses, names, Firebase UIDs, payment IDs, or QR/ticket codes to GA4.
-- Keep admin operational analytics in Supabase/PostgreSQL. GA4 data is complementary and should not replace booking/payment records.
+They serve different purposes and should not be treated as interchangeable sources of truth.
 
-## Admin dashboard
+## Architecture
 
-The dashboard can show GA4 data, but production implementation should use the Google Analytics Data API with a server-side service account/OAuth integration rather than exposing Google credentials in the browser.
+```mermaid
+flowchart LR
+    VISITOR[Website visitor] --> GA4[Google Analytics / GA4]
+    USER[Booking activity] --> DB[(Supabase PostgreSQL)]
+    DB --> OPS[Dashboard analytics]
+    GA4 --> WEBREPORT[Web analytics]
+```
 
-Useful dashboard cards:
+## Operational Metrics
 
-- Users / active users
-- Sessions
-- Event detail views
-- Registration CTA clicks
-- Checkout starts
-- Purchases
-- Conversion rate
-- Top event pages
-- Traffic source / medium
-- Device category
-- Landing pages
+Dashboard metrics can cover areas such as:
 
-## Security and privacy
+- Revenue.
+- Registrations.
+- Tickets.
+- Event activity.
+- Attendance/check-ins.
+- Host/application activity.
 
-Do not expose GA4 service-account credentials or access tokens to client-side code. Keep them in deployment secrets. Apply least privilege to the Google Analytics property.
+Financial metrics should be calculated from authoritative order/payment records rather than browser telemetry.
 
-For India-focused deployment, review consent/cookie requirements before enabling advertising or Google signals features. Analytics instrumentation must remain free of direct personal identifiers.
+## GA4
 
-## Implementation sequence
+GA4 is intended for:
 
-1. Add GA4 tracking to the public frontend.
-2. Create a typed analytics helper and event taxonomy.
-3. Add funnel events at real user actions.
-4. Verify events in GA4 DebugView/realtime reporting.
-5. Add a server-side GA4 Data API integration for dashboard reporting.
-6. Add caching/error handling so a Google API outage never breaks the dashboard.
-7. Add date range and event filters.
+- Page views.
+- Navigation.
+- Event discovery interactions.
+- Conversion funnel telemetry.
+- Marketing attribution where configured.
+
+The frontend contains a dedicated Google Analytics integration component. GA4 should not be used to determine whether a booking/payment actually succeeded.
+
+## Current Authentication Boundary
+
+Dashboard analytics provider calls are server-side operations. Credentials and service-account material must never be exposed to the browser.
+
+A production issue was observed on the realtime Google Analytics endpoint:
+
+```text
+GET /api/analytics/realtime?provider=google
+500 Internal Server Error
+Unable to authenticate with Google Analytics.
+```
+
+This means the analytics integration can exist while the Google provider authentication is unhealthy. It does not imply that Supabase query performance is the cause.
+
+## Data Integrity
+
+For operational reporting:
+
+```text
+Orders → Payments → Registrations → Tickets → Check-ins
+```
+
+Use database state for financial and attendance reporting. GA4 remains behavioral telemetry.
+
+## Analytics QA
+
+Verify:
+
+- GA4 measurement ID configuration.
+- Page-view behavior across client navigation.
+- Event names and payload consistency.
+- No duplicate page-view events after route transitions.
+- Dashboard provider authentication.
+- Graceful provider failure handling.
+- Timezone/date-range correctness.
+- Revenue calculations against database records.
+
+## Performance
+
+Analytics must not block critical user interactions. Provider requests should be isolated from primary booking/discovery paths and should fail gracefully.
+
+## Visuals
+
+Use Mermaid for the architecture. Current dashboard screenshots can be placed under `docs/images/analytics/` when stable screenshots are available and should be linked with relative Markdown paths.
