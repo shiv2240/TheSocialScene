@@ -1,183 +1,95 @@
-# The Social Scene — Future Updates Roadmap
+# The Social Scene — Current System Status
 
-This file tracks improvements that are intentionally deferred until the platform has more users, events, operational complexity, or revenue volume.
+This document records the implemented platform state and current operational decisions. It is intentionally not a speculative product roadmap.
 
-## Recent Platform Updates (August 2026)
+## Platform
 
-- **Multi-Role RBAC Architecture:** Deployed migrations `00016_dashboard_access_status_rbac.sql` and `00017_multi_role_rbac.sql`.
-- **Concurrent Roles & Access Management:** System now supports users holding multiple roles concurrently (e.g. `HOST` + `ADMIN`) with fine-grained route protection (`DashboardRouteGuard`), access action controls (`AccessActionMenu`), and role management endpoints (`/api/roles`, `/api/hosts`, `/api/users`).
+- Public website and private dashboard are separate Next.js applications.
+- Public production domain: `www.thesocialscene.club`.
+- Dashboard production domain: `admin.thesocialscene.club`.
+- Hosting: Vercel.
+- Primary frontend region: Mumbai (`bom1`) with configured failover.
 
-## Current Product Decisions
+## Authentication
 
-- Authentication remains Firebase-based.
-- **Primary login:** mobile number → 2Factor OTP → Firebase.
-- **Alternative login:** email → Firebase passwordless magic/login link.
-- Google sign-in remains available as an additional Firebase provider.
-- A user may browse and use the platform after email login without adding a phone number.
-- A user who logs in through email and wants to book a ticket must add a mobile number to their account and verify it through **2Factor OTP** before booking.
-- Phone-login users already have their verified number and do not need to repeat verification during booking.
-- The verified booking phone number is retained on the user's profile so the team can contact the attendee if an event is cancelled or materially changed.
-- The ticket model remains **one General ticket type per event** for the current stage.
-- Razorpay remains the payment gateway.
-- Supabase/PostgreSQL remains the system of record for profiles, events, registrations, orders, payments, tickets, attendance, and audit data.
+- Public identity: Firebase Authentication.
+- Phone verification: 2Factor OTP.
+- Google sign-in is available through Firebase.
+- Server-side session cookie is established through `/api/auth/session`.
+- Session establishment returns the user's profile so the Navbar does not race the profile API immediately after login.
+- Dashboard authentication uses Supabase SSR authentication.
 
-## Stage 2 — Ticketing Expansion
+## Database
 
-Implement when individual events need different pricing or inventory tiers.
+- Current system of record: Supabase PostgreSQL.
+- Canonical migrations: `backend/supabase/migrations/`.
+- RLS and RPC security are part of the authorization boundary.
+- Firebase UID is associated with the application profile model.
+- Booking, payment, ticket, attendance and audit data remain relational records.
 
-### Ticket Types
+## Ticketing & Payments
 
-Move from:
+- Current event booking model uses the existing registration/order/payment/ticket domain.
+- Razorpay is the payment gateway.
+- Server-side payment verification is required.
+- Razorpay webhook processing uses idempotency records.
+- Digital tickets contain QR data for check-in and may include barcode presentation.
+- Check-in is validated by the database-backed procedure and duplicate entry is rejected.
 
-```text
-Event
-└── General Ticket
-```
+## Host Applications
 
-to:
+- Public applications are submitted through `/become-a-host`.
+- Records are persisted in `host_applications`.
+- Administrative email notification is sent through Resend to `support@thesocialscene.club`.
+- The Resend call is awaited; failures are logged and returned as an explicit warning rather than silently ignored.
 
-```text
-Event
-├── Early Bird
-├── General
-└── VIP
-```
+## RBAC
 
-Planned capabilities:
+The platform supports multiple roles per user. Current role concepts include:
 
-- Ticket type name
-- Description
-- Price
-- Capacity
-- Sales start/end time
-- Per-user purchase limit
-- Active/inactive status
-- Ticket-type-specific QR/pass metadata
-- Inventory locking per ticket type
+- `SUPER_ADMIN`
+- `ADMIN`
+- `HOST`
+- `CHECKIN_STAFF`
+- `USER`
 
-Do not implement until there is a real business requirement for multiple ticket tiers.
+Access status is separately represented, including `ACTIVE`, `DEACTIVATED` and `SUSPENDED` states.
 
-## Stage 2 — Booking & Inventory Improvements
+## Performance
 
-- Stronger reservation/hold expiry handling
-- Explicit inventory ledger
-- Better concurrent-booking protection
-- Registration timeout cleanup
-- Failed-payment recovery
-- Payment reconciliation dashboard
-- Refund workflow
-- Event cancellation workflow with attendee notification tracking
+Current performance measures include:
 
-## Stage 2 — Customer Communication
+- Next.js App Router navigation.
+- Idle route prefetching.
+- Client router stale times.
+- Public server/data caching.
+- Public HTTP cache headers where safe.
+- Next.js image optimization.
+- Database indexes for event/search paths.
+- Immediate route-level loading skeleton.
+- Reduced authentication request races.
 
-Expand the current contact-phone requirement into a full communication layer.
+The intended goal is fast perceived navigation, with sub-200 ms achievable for suitable cached/prefetched routes rather than guaranteed for all requests.
 
-Potential channels:
+## Analytics
 
-- SMS
-- Email
-- WhatsApp, subject to provider/business requirements
+- Frontend web telemetry uses GA4.
+- Dashboard operational analytics use application/database data.
+- GA4 is not a financial source of truth.
+- A Google Analytics realtime provider authentication failure has been observed in the dashboard and remains an integration-health item to verify independently from database performance.
 
-Capabilities:
+## Current Engineering Rules
 
-- Event cancellation notifications
-- Event time/venue changes
-- Payment confirmations
-- Ticket delivery
-- Refund notifications
-- Reminder notifications
-- Communication history/audit trail
+- Do not expose database service-role credentials to clients.
+- Do not trust client-side payment success as final confirmation.
+- Do not bypass server-side RBAC with UI-only checks.
+- Do not introduce a second database source of truth.
+- Do not mark an email notification as successful without checking the provider response.
+- Do not make public pages unnecessarily dynamic when their data can be cached.
+- Do not regress the global floating/rounded Navbar behavior while changing individual pages.
 
-## Stage 2 — Promotions
+## Documentation Policy
 
-When the platform starts running larger campaigns:
+Architecture documentation should describe the system that is actually implemented. Future proposals must be clearly separated and explicitly labeled as future planning.
 
-- Coupon codes
-- Percentage discounts
-- Fixed discounts
-- Usage limits
-- Per-user limits
-- Expiry dates
-- Event-specific coupons
-- Campaign attribution
-
-## Stage 2 — Host & Event Operations
-
-- More granular host permissions
-- Event-specific staff assignment
-- Bulk attendee operations
-- Bulk ticket cancellation/refund
-- Event duplication/templates
-- Scheduled publishing
-- Scheduled registration opening/closing
-- Advanced event analytics
-
-## Stage 3 — Ticketing Marketplace Features
-
-Only after the core booking model is stable at scale:
-
-- Multiple ticket classes by default
-- Dynamic pricing
-- Waitlist automation
-- Ticket transfers
-- Resale/secondary ticketing, if legally and commercially appropriate
-- Group bookings
-- Add-ons
-- Seat maps where relevant
-
-## Stage 3 — Platform Scale & Architecture
-
-- Formal shared backend package
-- Remove duplicated legacy backend copies after dependency verification
-- CI/CD quality gates
-- Automated integration tests
-- Payment contract tests
-- End-to-end booking tests
-- Centralized observability
-- Error tracking
-- Background job/queue infrastructure where required
-- Rate-limit strategy by endpoint and risk level
-
-## Deferred Architecture Cleanup
-
-The repository currently contains duplicated copies of the backend package under:
-
-- `backend/`
-- `frontend/lib/backend/`
-- `dashboard/lib/backend/`
-
-The root `backend/` directory is the intended canonical location. The nested copies appear to be legacy/duplicated material and should not become a second source of truth.
-
-Before deletion, verify there are no imports or build-time references to `@backend/*` or the nested directories. Then:
-
-1. Remove the duplicate nested backend copies.
-2. Remove obsolete `@backend/*` TypeScript path aliases.
-3. Keep `backend/supabase/migrations/` as the canonical migration source.
-4. Regenerate database types from the live Supabase schema.
-5. Run frontend and dashboard production builds.
-6. Verify authentication, checkout, payment, ticket generation, and scanner flows.
-
-## Authentication Evolution
-
-Do not migrate to Supabase Auth merely for architectural simplicity.
-
-The current decision is to keep Firebase authentication and 2Factor phone verification.
-
-If authentication is redesigned later, evaluate account linking carefully so users do not end up with duplicate identities across phone/email providers.
-
-## Admin Subdomain
-
-Target production separation:
-
-```text
-thesocialscene.club          → public website
-admin.thesocialscene.club    → admin/dashboard application
-```
-
-The dashboard should be deployed as its own application/project rather than exposed under a public `/dashboard` path.
-
-DNS and hosting configuration must point `admin.thesocialscene.club` to the dashboard deployment and use HTTPS.
-
-## Operational Rule
-
-Do not implement deferred roadmap items only because they are technically possible. Promote an item into the active development queue when there is a concrete product, revenue, operational, security, or scale requirement for it.
+Mermaid diagrams are preferred for architecture and process visuals because they remain editable in Markdown. Stable UI screenshots may be stored under `docs/images/` when available.
