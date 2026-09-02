@@ -1,38 +1,20 @@
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import {
   Search, MapPin, Sparkles, ArrowRight, Info, QrCode, Ticket, Users, Mountain, Music
 } from 'lucide-react';
 import { EventCard } from '@/components/event/EventCard';
-import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import { createClient } from '@/lib/supabase/server';
+import { getPublicFeaturedEvents } from '@/lib/events';
+
+export const revalidate = 30;
 
 export default async function PublicHomePage() {
-  const supabase = await createClient();
-  const { data: featuredEvents } = await supabase
-    .from('events')
-    .select('*, category:event_categories(id,name,slug,display_order), venue:venues(id,name,slug,address,city,capacity)')
-    .eq('status', 'PUBLISHED')
-    .eq('featured', true)
-    .order('start_at', { ascending: true })
-    .limit(6);
-
-  let displayEvents = featuredEvents;
-  if (!displayEvents?.length) {
-    const { data: fallback } = await supabase
-      .from('events')
-      .select('*, category:event_categories(id,name,slug,display_order), venue:venues(id,name,slug,address,city,capacity)')
-      .eq('status', 'PUBLISHED')
-      .order('start_at', { ascending: true })
-      .limit(6);
-    displayEvents = fallback;
-  }
+  const displayEvents = await getPublicFeaturedEvents(6);
 
   return (
     <div className="min-h-screen bg-[#ede4d0] text-[#1e1a14] pb-24 md:pb-0">
-      <Navbar />
-
       {/* ─── Ticker ───────────────────────────── */}
       <div className="bg-[#c93a2a] text-[#f7f0e3] py-2.5 overflow-hidden border-y-2 border-[#1e1a14]">
         <div className="marquee-track items-center gap-12 font-mono text-[10px] font-bold uppercase tracking-widest">
@@ -61,10 +43,13 @@ export default async function PublicHomePage() {
         <section className="relative overflow-hidden grain">
           {/* Big photo */}
           <div className="relative h-[480px] sm:h-[600px] w-full">
-            <img
-              src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1600&q=80"
+            <Image
+              src="/Hero.jfif"
               alt="The Social Scene — gather, connect, explore"
-              className="w-full h-full object-cover"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover"
             />
             {/* Overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-t from-[#1e1a14]/80 via-[#1e1a14]/20 to-transparent" />
@@ -162,7 +147,7 @@ export default async function PublicHomePage() {
                   <p className="font-body text-xs text-[#f7f0e3]/80 leading-relaxed">
                     as interpreted by the youth of today, our interpretation is an original and organic reflection of life.
                   </p>
-                  <div className="border-t bord er-[#f7f0e3]/20 pt-3">
+                  <div className="border-t border-[#f7f0e3]/20 pt-3">
                     <p className="font-mono text-[9px] uppercase tracking-widest text-[#f7f0e3]/60">say hello:</p>
                     <p className="font-mono text-[11px] text-[#f7f0e3] mt-0.5">support@thesocialscene.club</p>
                   </div>
@@ -181,10 +166,12 @@ export default async function PublicHomePage() {
         {/* ─── Activity / Action Photo Section ─── */}
         <section className="border-b-2 border-[#1e1a14] overflow-hidden relative">
           <div className="h-[340px] sm:h-[460px] w-full relative">
-            <img
-              src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1600&q=80"
+            <Image
+              src="/Activity.jfif"
               alt="People at a social event"
-              className="w-full h-full object-cover"
+              fill
+              sizes="100vw"
+              className="object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-[#1e1a14]/60 via-transparent to-transparent" />
             <div className="absolute inset-0 flex items-end p-6 sm:p-10">
