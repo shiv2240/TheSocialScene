@@ -1,163 +1,141 @@
-# The Social Scene — Performance Engineering Playbook
+# Performance Optimization — Current System
 
-This document records the production performance strategy used for The Social Scene. It is also an interview-ready reference for explaining how a full-stack application is made faster without sacrificing correctness or security.
+This document records the performance architecture currently implemented in The Social Scene.
 
-## 1. Performance model
+## Performance Goal
 
-`Browser → CDN/Edge → Next.js → API → Database / External APIs → Response → Browser`
+The product goal is fast perceived navigation, with a target of **under 200 ms where cached/prefetched client navigation makes that possible**. This is a performance target, not a guarantee for every uncached request or third-party API call.
 
-Always **measure → identify bottleneck → optimize → verify**. Do not optimize by guesswork.
+## Current Request Path
 
-## 2. Current production fixes
-
-### Navigation and page shell
-- Keep persistent navigation outside route-specific page rendering where possible.
-- `/events` explicitly renders the shared Navbar so Explore cannot render without the desktop/mobile header.
-- Root `MobileNavigation` remains persistent across route transitions.
-- Avoid route-wide loading screens when only dynamic data is changing.
-- Use localized skeletons for genuinely asynchronous sections.
-
-### `/events` build stability
-- `EventsSearch` uses `useSearchParams()`, so it is wrapped in a React `Suspense` boundary at the route level as required by Next.js 16 production prerendering.
-- The `/events` route is explicitly `force-dynamic` because its server-side Supabase admin query can fail during Vercel build-time prerendering with PostgREST `PGRST303` (`JWT issued at future`) when build-environment clock skew makes the service JWT appear not-yet-valid.
-- Public event data remains cached for 30 seconds inside `getPublicEvents()`, so avoiding build-time prerendering does not mean abandoning application-level caching.
-
-### CSS stability
-- Fixed invalid Tailwind selector escaping in `globals.css` (`.md\\:hidden` → valid `.md\:hidden`).
-- Avoid broad selectors that unintentionally alter unrelated page content.
-- Floating-navbar content compaction is scoped to the Navbar's immediate page sibling rather than `body > main`, reducing layout side effects.
-
-### Data fetching
-- Public event data is server-rendered with short revalidation.
-- Categories/category previews use short server-side caching/revalidation.
-- Independent requests are executed in parallel.
-- Profile requests are coalesced/cached briefly on the client instead of issuing a new `/api/profile` request for every navigation.
-
-## 3. Frontend optimization techniques
-
-1. **Persistent application shell** — Navbar and mobile navigation remain mounted across route transitions.
-2. **Server Components first** — keep static/non-interactive UI on the server.
-3. **Client Components only where needed** — browser state, effects and event handlers stay client-side.
-4. **Suspense boundaries** — isolate client data/search islands from the page shell.
-5. **Localized loading UI** — avoid full-page loaders for small dynamic sections.
-6. **Parallel fetching** — avoid sequential API waterfalls.
-7. **Request deduplication/coalescing** — reuse identical in-flight or recently fetched data.
-8. **Server caching/revalidation** — cache read-heavy public data according to volatility.
-9. **Route prefetching** — use Next.js prefetching selectively for predictable navigation.
-10. **Image optimization** — `next/image`, responsive `sizes`, AVIF/WebP, explicit dimensions, lazy loading below the fold.
-11. **Bundle optimization** — remove unused dependencies and avoid shipping dashboard-only code to public routes.
-12. **Dynamic imports** — use only for genuinely heavy, non-critical client modules.
-13. **Font optimization** — prefer `next/font`/self-hosted fonts over runtime external font requests.
-14. **Core/native JavaScript** — use `fetch`, `AbortController`, `IntersectionObserver`, passive listeners and similar browser primitives when they solve a small problem cleanly.
-15. **Avoid unnecessary client state** — do not introduce a state library when native/browser/framework primitives are sufficient.
-
-### Core JavaScript rule
-
-Core JS is an optimization tool, not a replacement for good architecture. Native APIs are useful for small, local problems such as request cancellation, event handling, visibility detection and request coalescing. They should not replace Next.js routing, Server Components or caching simply because handwritten JavaScript appears faster.
-
-## 4. Backend/API optimization techniques
-
-1. Profile endpoint duration.
-2. Measure database time separately from application time.
-3. Use `EXPLAIN ANALYZE` for slow PostgreSQL queries.
-4. Add targeted indexes for `WHERE`, `JOIN`, filtering and ordering patterns.
-5. Avoid `SELECT *` when a smaller projection is sufficient.
-6. Eliminate N+1 queries.
-7. Paginate all potentially large collections.
-8. Return compact DTOs rather than oversized database records.
-9. Run independent DB/external operations concurrently.
-10. Add explicit timeouts around third-party services.
-11. Keep non-critical work out of the critical response path.
-12. Reuse/pool database connections appropriately for serverless workloads.
-
-## 5. Database optimization
-
-The performance index migration targets the application's main read patterns: event discovery, event/category/host/venue relationships, schedules, registrations, tickets, check-ins, orders, payments, refunds, waitlists and coupon redemption.
-
-Indexing principle: optimize actual access patterns without indiscriminately indexing every column because indexes also add write/storage overhead.
-
-## 6. Caching strategy
-
-| Data | Strategy |
-|---|---|
-| Categories | Long cache / revalidation |
-| Public event discovery | Short/medium revalidation |
-| Host profiles | Medium revalidation |
-| Venue information | Medium revalidation |
-| Search results | Short cache |
-| User profile | Short client cache / revalidation |
-| Orders/tickets | Dynamic |
-| Payments | Never serve stale transactional state |
-| Authentication/session | Dynamic |
-
-## 7. Performance anti-patterns to avoid
-
-- Full-page loading spinner for every route transition.
-- Refetching static/public data on every navigation.
-- Sequential requests that could run in parallel.
-- Unbounded database queries.
-- `SELECT *` for UI endpoints.
-- N+1 database access.
-- Blocking initial rendering on analytics or other non-critical third-party calls.
-- Large original images for small cards.
-- Making an entire page a Client Component unnecessarily.
-- Adding libraries when a native browser API is sufficient.
-- Performing authenticated/admin Supabase queries during build-time prerender when the data can safely be fetched at request time.
-
-## 8. Core Web Vitals targets
-
-| Metric | Target |
-|---|---:|
-| LCP | < 2.5s |
-| INP | < 200ms |
-| CLS | < 0.1 |
-| TTFB | Preferably < 800ms |
-
-Measure mobile and desktop separately.
-
-## 9. Observability
-
-For important endpoints capture:
-
-```text
-request
-├── total duration
-├── database duration
-├── external API duration
-├── response size
-└── HTTP status
+```mermaid
+flowchart LR
+    CLICK[User click] --> LINK[Next.js Link / router]
+    LINK --> PREFETCH[Prefetched route when available]
+    PREFETCH --> CACHE[Client router cache]
+    CACHE --> UI[Immediate page]
+    LINK --> SERVER[Server render when needed]
+    SERVER --> DATA[Cached public data]
+    DATA --> UI
 ```
 
-A useful diagnosis converts “the website is slow” into a measurable bottleneck such as:
+## Implemented Optimizations
+
+### 1. Next.js client navigation
+
+Use `Link`/App Router navigation instead of full-page browser reloads for internal routes.
+
+### 2. Router stale times
+
+`frontend/next.config.ts` uses Next.js experimental `staleTimes` to retain suitable client router segments and reduce repeated server work during navigation.
+
+### 3. Idle route prefetching
+
+`NavigationPrefetch` prefetches primary routes during browser idle time. It is deliberately delayed/idle-triggered so prefetching does not compete with initial critical rendering.
+
+### 4. Public data caching
+
+Public event and category queries use Next.js `unstable_cache` with revalidation windows appropriate to the data.
+
+Examples:
+
+- Public event listings: short revalidation.
+- Public event detail: short revalidation.
+- Categories: longer revalidation.
+
+### 5. Public HTTP caching
+
+Suitable public pages use `Cache-Control` policies with `s-maxage` and `stale-while-revalidate` so Vercel/CDN can serve repeat requests without regenerating every response.
+
+Authenticated/private endpoints are not treated as public-cacheable content.
+
+### 6. Image optimization
+
+Event cards use Next.js `<Image>` with responsive sizing. This reduces unnecessary image transfer and helps maintain layout stability.
+
+### 7. Package optimization
+
+`lucide-react` is included in Next.js `optimizePackageImports` to reduce unnecessary client bundle work.
+
+### 8. Database indexes
+
+Search/event-related indexes have been added in Supabase PostgreSQL. Direct database query testing showed search execution in the millisecond/sub-millisecond range for the tested paths.
+
+Therefore, a several-hundred-millisecond or multi-second user-facing API request should not automatically be attributed to the SQL query itself; application runtime, network and provider calls must also be measured.
+
+## Authentication Performance
+
+The public login flow previously suffered from a race:
 
 ```text
-/events       1,850 ms
-  ├─ DB       1,430 ms
-  ├─ external     0 ms
-  └─ serialize   80 ms
+Firebase login
+   ↓
+Navbar /api/profile probe
+   ↓
+Server session cookie not ready
+   ↓
+401
 ```
 
-## 10. Debugging workflow
+The current design establishes the server session through `/api/auth/session` and returns the profile in the same response. The Navbar reacts to Firebase auth state and refreshes server profile state after session establishment.
 
-1. Reproduce the slow navigation.
-2. Inspect the browser Network waterfall.
-3. Determine whether the slow request is a document, RSC request, API call, image or third-party resource.
-4. Measure TTFB and response size.
-5. Trace API/database execution.
-6. Inspect query plans.
-7. Optimize the highest-impact bottleneck.
-8. Build in production mode.
-9. Deploy.
-10. Compare before/after metrics.
+This removes the need for an immediate retry loop and avoids the user-facing “session is still being established” failure mode.
 
-## 11. Interview-ready answer
+## Profile Request Optimization
 
-**How would you fix a Next.js + PostgreSQL application where every navigation shows a loader and feels slow?**
+A small client-side request cache/deduplication layer exists for profile reads to prevent duplicate concurrent profile requests. It must not cache unauthorized responses as successful authenticated state.
 
-> “First I would determine whether the navigation is actually doing a browser reload or whether the Next.js route transition is re-executing server data fetching. I would inspect the Network waterfall and identify which requests repeat. I would move persistent navigation and static UI into layouts so they survive route transitions, keep only truly dynamic data dynamic, cache public read-heavy data with appropriate revalidation, and deduplicate repeated requests. I would isolate client-side search/filter logic behind Suspense instead of making the entire page client-rendered. On the backend I would profile database queries, add targeted indexes, eliminate N+1 queries, paginate large collections and parallelize independent work. I would also make sure build-time rendering does not depend on credentials or external state that can fail due to environment differences. Finally I would validate TTFB, LCP, INP, payload size and API latency before and after the changes.”
+Profile caches are invalidated when profile updates are signaled.
 
-## 12. Engineering principle
+## Search Performance
 
-**Measure → Identify bottleneck → Optimize → Verify.**
+The search route has server-side caching and CDN cache headers where safe. Database indexes were added for event/tag mapping paths.
 
-A performance change is successful only when measurable latency, payload size, rendering performance or user-perceived responsiveness improves without correctness or security regressions.
+The correct diagnostic order for slow search is:
+
+1. Browser request timing.
+2. Vercel/server function duration.
+3. Application processing.
+4. Supabase query duration.
+5. Third-party calls.
+6. Response transfer time.
+
+## Loading UX
+
+`frontend/app/loading.tsx` provides immediate route-level skeleton UI. This improves perceived responsiveness even when a fresh server render cannot complete in 200 ms.
+
+## Region Configuration
+
+The frontend Vercel configuration uses Mumbai (`bom1`) as the primary function region and `iad1` as failover. This reduces geographic distance for the primary India audience while retaining a fallback execution region.
+
+## What Not To Do
+
+- Do not make every route `force-dynamic` without a data requirement.
+- Do not add Edge runtime solely because a request feels slow; measure first.
+- Do not make every API response publicly cacheable.
+- Do not cache authenticated responses across users.
+- Do not preload every route and overwhelm the initial network.
+- Do not add large client libraries for simple UI behavior.
+- Do not treat GA4 or browser timing as a database performance measurement.
+
+## Measurement Method
+
+Use browser DevTools, Vercel function timing and direct database timing separately. Record:
+
+```text
+TTFB
+Server duration
+DB duration
+Third-party duration
+Payload size
+Client render/hydration time
+Client navigation duration
+```
+
+## Current Bottleneck Interpretation
+
+For the recent navigation investigation, database search execution was not the dominant latency source. The main focus is therefore server-render/cache behavior, route prefetching, authentication request sequencing, payloads and third-party dependencies.
+
+## Visual Documentation
+
+Mermaid diagrams are preferred for performance architecture. Add current waterfall screenshots under `docs/images/performance/` when they are available and verified against the current deployment.
