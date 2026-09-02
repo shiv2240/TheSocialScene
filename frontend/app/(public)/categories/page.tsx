@@ -8,7 +8,8 @@ import { getPublicCategories, getPublicCategoryEvents } from '@/lib/public-data'
 type Category = { id: string; name: string; slug: string; display_order: number | null; is_active: boolean };
 type PublishedEvent = (Awaited<ReturnType<typeof getPublicCategoryEvents>>)[number];
 
-export const dynamic = 'force-dynamic';
+// Both data sources are already cached (categories: 5m, events: 30s). Keep
+// the route cacheable so navigation does not force a fresh server render.
 export const revalidate = 30;
 
 export default async function CategoriesPage() {
