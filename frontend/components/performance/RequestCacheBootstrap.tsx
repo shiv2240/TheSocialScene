@@ -41,15 +41,21 @@ export function RequestCacheBootstrap() {
       if (profileRequest) return profileRequest.then(response => response.clone());
 
       profileRequest = originalFetch(input, init).then(async response => {
-        try {
-          const body = await response.clone().json();
-          profileCache = {
-            expiresAt: Date.now() + PROFILE_TTL_MS,
-            body,
-            status: response.status,
-            headers: { 'Cache-Control': 'private, max-age=60' },
-          };
-        } catch {
+        // Never cache auth failures. A cached 401 can make a newly-created
+        // session look signed out until the TTL expires.
+        if (response.ok) {
+          try {
+            const body = await response.clone().json();
+            profileCache = {
+              expiresAt: Date.now() + PROFILE_TTL_MS,
+              body,
+              status: response.status,
+              headers: { 'Cache-Control': 'private, max-age=60' },
+            };
+          } catch {
+            profileCache = null;
+          }
+        } else {
           profileCache = null;
         }
         return response;
