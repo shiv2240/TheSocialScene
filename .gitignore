@@ -13,16 +13,10 @@ build/
 dist/
 
 # Environment Variables & Secrets (NEVER commit real secrets)
-.env
-.env*.local
-.env.local
-.env.production
-.env.development
-*.env
-*.env.local
+.env*
 !.env.example
-!dashboard/.env.example
-!frontend/.env.example
+*.env
+*.env.*
 
 # Logs
 *.log
