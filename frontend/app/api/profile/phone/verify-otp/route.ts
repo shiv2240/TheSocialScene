@@ -48,8 +48,6 @@ export async function POST(request: NextRequest) {
     const { data: conflict, error: conflictError } = await supabase.from('profiles').select('id').eq('phone', phone).neq('firebase_uid', user.uid).maybeSingle();
     if (conflictError) throw conflictError;
     if (conflict) return NextResponse.json({ error: 'This mobile number is already linked to another account.' }, { status: 409 });
-    const { error: profileError } = await supabase.from('profiles').update({ phone, phone_verified: true, updated_at: new Date().toISOString() }).eq('firebase_uid', user.uid);
-    if (profileError) throw profileError;
     const { data: consumedSession, error: consumeError } = await supabase
       .from('phone_otp_sessions')
       .update({ consumed_at: new Date().toISOString() })
@@ -60,8 +58,11 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (consumeError) throw consumeError;
     if (!consumedSession) return NextResponse.json({ error: 'This OTP session has already been used. Request a new OTP.' }, { status: 409 });
+    const { error: profileError } = await supabase.from('profiles').update({ phone, phone_verified: true, updated_at: new Date().toISOString() }).eq('firebase_uid', user.uid);
+    if (profileError) throw profileError;
     const response = NextResponse.json({ ok: true, phone });
     response.cookies.set(SESSION_COOKIE, '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 0, path: '/' });
+    response.cookies.set('tss_profile_phone_otp_phone', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 0, path: '/' });
     return response;
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to verify phone number.' }, { status: 500 });
