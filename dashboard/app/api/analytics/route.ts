@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireAnalyticsAccess } from '@/lib/analytics-auth';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
 type OrderRow = { amount: number | null; created_at: string; status: string };
@@ -9,9 +9,8 @@ type EventRow = { id: string; title: string; status: string; start_at: string; p
 
 export async function GET() {
   try {
-    const auth = await createClient();
-    const { data: { user } } = await auth.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    const auth = await requireAnalyticsAccess(['SUPER_ADMIN', 'ADMIN', 'FINANCE']);
+    if (!auth.ok) return auth.response;
 
     const db = getSupabaseAdmin();
     const [ordersRes, registrationsRes, checkinsRes, eventsRes, hostsRes] = await Promise.all([

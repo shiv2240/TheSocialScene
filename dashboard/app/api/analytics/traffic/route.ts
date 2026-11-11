@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSign } from 'node:crypto';
-import { createClient } from '@/lib/supabase/server';
+import { requireAnalyticsAccess } from '@/lib/analytics-auth';
 
 type TokenResponse = { access_token?: string };
 type DimensionValue = { value?: string };
@@ -49,9 +49,8 @@ async function runReport(accessToken: string, propertyId: string, body: Record<s
 
 export async function GET(request: Request) {
   try {
-    const auth = await createClient();
-    const { data: { user } } = await auth.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    const auth = await requireAnalyticsAccess(['SUPER_ADMIN', 'ADMIN', 'EVENT_MANAGER']);
+    if (!auth.ok) return auth.response;
 
     const provider = new URL(request.url).searchParams.get('provider') === 'firebase' ? 'firebase' : 'google';
     const propertyId = provider === 'firebase' ? process.env.FIREBASE_GA4_PROPERTY_ID : process.env.GA4_PROPERTY_ID;
