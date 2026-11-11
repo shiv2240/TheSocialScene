@@ -24,7 +24,7 @@ create or replace function public.consume_api_rate_limit(
 returns boolean
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_window_start bigint;
