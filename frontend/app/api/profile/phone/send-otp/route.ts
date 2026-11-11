@@ -22,14 +22,14 @@ export async function POST(request: NextRequest) {
     if (conflictError) throw conflictError;
     if (conflict) return NextResponse.json({ error: 'This mobile number is already linked to another account.' }, { status: 409 });
 
+    if (!await consumeRateLimit(supabase, 'phone-otp-send-phone-cooldown', phone, 1, 30)) {
+      return NextResponse.json({ error: 'Please wait before requesting another OTP.' }, { status: 429 });
+    }
     if (!await consumeRateLimit(supabase, 'phone-otp-send-phone-hour', phone, 3, 3600)) {
       return NextResponse.json({ error: 'Too many OTP requests for this number. Try again later.' }, { status: 429 });
     }
     if (!await consumeRateLimit(supabase, 'phone-otp-send-user-hour', user.uid, 5, 3600)) {
       return NextResponse.json({ error: 'You have requested too many OTPs. Try again later.' }, { status: 429 });
-    }
-    if (!await consumeRateLimit(supabase, 'phone-otp-send-phone-cooldown', phone, 1, 30)) {
-      return NextResponse.json({ error: 'Please wait before requesting another OTP.' }, { status: 429 });
     }
 
     const apiKey = process.env.TWOFACTOR_API_KEY;
