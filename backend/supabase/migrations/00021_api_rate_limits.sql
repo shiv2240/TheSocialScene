@@ -31,8 +31,8 @@ declare
   v_count integer;
 begin
   if p_bucket_key is null or length(p_bucket_key) <> 64
-     or p_limit < 1 or p_limit > 1000
-     or p_window_seconds < 1 or p_window_seconds > 86400 then
+     or p_limit is null or p_limit < 1 or p_limit > 1000
+     or p_window_seconds is null or p_window_seconds < 1 or p_window_seconds > 86400 then
     raise exception 'Invalid rate-limit parameters';
   end if;
 
@@ -61,13 +61,12 @@ $$;
 revoke all on function public.consume_api_rate_limit(text, integer, integer) from public, anon, authenticated;
 grant execute on function public.consume_api_rate_limit(text, integer, integer) to service_role;
 
-
 -- Store provider OTP session metadata server-side. The browser gets only a
 -- random opaque token; phone and provider session ID are never trusted from cookies.
 create table if not exists public.phone_otp_sessions (
   token_hash text primary key check (length(token_hash) = 64),
   firebase_uid text not null,
-  phone text not null check (phone ~ '^\\+91[6-9][0-9]{9}$'),
+  phone text not null check (phone ~ '^\+91[6-9][0-9]{9}$'),
   provider_session_id text not null,
   expires_at timestamptz not null,
   consumed_at timestamptz,
