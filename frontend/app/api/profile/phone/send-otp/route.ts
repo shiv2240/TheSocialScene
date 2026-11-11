@@ -46,6 +46,10 @@ export async function POST(request: NextRequest) {
     // receives only a random, opaque, HTTP-only token bound to the signed-in user.
     const sessionToken = randomBytes(32).toString('base64url');
     const tokenHash = createHash('sha256').update(sessionToken).digest('hex');
+    // Expired sessions and prior pending sessions are no longer useful.
+    const { error: cleanupError } = await supabase.from('phone_otp_sessions').delete().or(`expires_at.lt.${new Date().toISOString()},firebase_uid.eq.${user.uid}`);
+    if (cleanupError) throw cleanupError;
+
     const { error: sessionError } = await supabase.from('phone_otp_sessions').insert({
       token_hash: tokenHash,
       firebase_uid: user.uid,
@@ -57,6 +61,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({ ok: true, expiresIn: 600 });
     response.cookies.set(SESSION_COOKIE, sessionToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 600, path: '/' });
+    response.cookies.set('tss_profile_phone_otp_phone', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 0, path: '/' });
     return response;
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to send OTP.' }, { status: 500 });
