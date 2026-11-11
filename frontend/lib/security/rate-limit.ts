@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Consume a fixed-window rate-limit bucket in Postgres. Identifiers are hashed
+ * Consume a fixed-window rate-limit bucket in Postgres. Identifiers are keyed-HMAC hashed
  * before storage so phone numbers, user IDs and OTP session IDs are not stored.
  */
 export async function consumeRateLimit(
